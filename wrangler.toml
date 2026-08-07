@@ -1,0 +1,47 @@
+# Deploy configuration for reddmunro.com
+#
+#     npx wrangler deploy          # ships ./demo to the live site
+#
+# There is no Worker script. This is an assets-only Worker: every
+# request is answered from ./demo and no code runs on Cloudflare's
+# side. That is not a detail, it is the product's central claim — the
+# audit happens in the visitor's tab, and there is no server that
+# COULD receive a dashboard export even if someone wanted it to.
+# Adding a `main` here would quietly make that claim untrue, so if a
+# future change needs one, the copy on the page has to change too.
+#
+# BEFORE DEPLOYING, ALWAYS:
+#     python build_demo.py
+# ./demo is build output. It carries a copy of signal_audit.py, and a
+# stale copy means every number on the landing page is computed by an
+# engine no test covers. build_demo.py syncs and drift-checks it.
+
+name = "reddmunro"
+compatibility_date = "2026-08-07"
+
+[assets]
+directory = "./demo"
+
+# Return the real 404 page rather than 200-with-index.html. The
+# default for Workers assets is "none", and Pages used to guess this
+# from the presence of a 404.html — Workers makes it explicit, which
+# is why it is written down here rather than inherited.
+not_found_handling = "404-page"
+
+# NOT SET, deliberately:
+#
+#   binding = "ASSETS"   only valid alongside a `main` script, and
+#                        there is none. Wrangler errors if both are
+#                        absent and this is set.
+#
+#   not_found_handling = "single-page-application"
+#                        would serve index.html with HTTP 200 for
+#                        every unknown path, so a mistyped URL would
+#                        render the landing page and look fine while
+#                        search engines index infinite duplicates.
+#
+# demo/_headers is picked up natively by Workers static assets, same
+# as it was by Pages. The Content-Type line on signal_audit.py is the
+# load-bearing one: served as anything executable-looking, a
+# root-level .py can be treated as a function rather than a static
+# file, and the page cannot load its own engine.

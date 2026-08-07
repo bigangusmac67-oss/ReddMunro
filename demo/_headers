@@ -1,0 +1,21 @@
+# Cloudflare Pages / Netlify header rules.
+#
+# The Content-Type on signal_audit.py is the important line. Served as
+# anything executable-looking, some hosts treat a root-level .py as a
+# serverless function rather than a static asset — the single most
+# likely deploy failure for this page.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+
+/signal_audit.py
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=300
+
+/*.csv
+  Content-Type: text/csv; charset=utf-8
+
+/domains/*
+  Content-Type: application/json; charset=utf-8

@@ -1,0 +1,38 @@
+# Build and packaging output
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Node, from the wasm32 CI check
+node_modules/
+package-lock.json
+
+# Credentials. wrangler writes an OAuth token under here after
+# `wrangler login`; it is a deploy credential for the whole Workers
+# account and must never reach a commit.
+.wrangler/
+.dev.vars
+.env
+.env.*
+*.pem
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NOT IGNORED, on purpose:
+#
+#   demo/            build output, but it is what gets deployed, and
+#                    CI checks it against source rather than rebuilding
+#                    blind. Ignoring it would hide drift.
+#   *.csv            the corpora ARE the evidence. Every pre-registered
+#                    result in REAL_DASHBOARDS.md is checkable only if
+#                    the data it was scored against is here. ~2 MB.
+#   *_report.html    generated, but they are the published artefacts
+#                    those documents refer to.

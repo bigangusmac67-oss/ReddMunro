@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redd-munro"
+version = "0.1.0"
+description = "Redd Munro — find out how much of your dashboard is measuring the same thing"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Shaun Cooper" }]
+keywords = ["observability", "metrics", "finops", "dashboard",
+            "redundancy", "correlation", "cardinality"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Monitoring",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+# numpy is the ONLY runtime dependency, deliberately. It is what makes
+# the engine runnable in Pyodide (see check_pyodide.py) and what keeps
+# the container small. Any proposal to add a dependency should be
+# weighed against losing the browser demo.
+dependencies = ["numpy>=1.21"]
+
+[project.optional-dependencies]
+# The hosted service. Not needed to use the CLI.
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.27",
+          "python-multipart>=0.0.9"]
+dev = ["build", "twine"]
+
+[project.scripts]
+# ONE entry point. The distribution is redd-munro because plain `redd`
+# was already taken on PyPI, but the distribution name is typed once at
+# install time and never again — this is the name that matters, and
+# [project.scripts] is a separate namespace from the distribution.
+redd = "signal_audit_cli:main"
+
+[project.urls]
+Documentation = "https://github.com/example/redd-munro#readme"
+
+[tool.setuptools]
+# Flat modules rather than a package directory. This preserves
+# `import signal_audit` exactly as the engine tests use it. The
+# DISTRIBUTION is redd-munro; the COMMAND is redd; the MODULE stays
+# signal_audit. Three different names on purpose:
+#   - `redd` alone was already taken on PyPI, so the distribution is
+#     redd-munro. The distribution name is only ever typed once, at
+#     install time.
+#   - `[project.scripts]` decides what the user actually types, and that
+#     is a separate namespace from the distribution. So the command
+#     stays `redd`.
+#   - The module stays signal_audit because renaming it would touch four
+#     test suites, five backend modules and the browser demo for no
+#     user-visible benefit.
+# because renaming it would touch four test suites, five backend modules
+# and the browser demo for no user-visible benefit — nobody imports this
+# who is not already reading the source. Turning
+# the engine into a package would change the import surface and the
+# tests are the thing guaranteeing the analysis is correct.
+py-modules = ["signal_audit", "signal_audit_cli"]
+
+[tool.setuptools.package-data]
+"*" = ["README.md"]
+
+# Domain lexicons are DATA, and `py-modules` ships flat files with no
+# package to hang package-data on — so without this they are simply
+# absent from the wheel and `--domain` reports "none installed" for
+# every pip user while working perfectly in the source tree. That is
+# exactly the silent divergence between installed and local that the
+# execution guard exists to catch, so it is fixed rather than tolerated.
+[tool.setuptools.data-files]
+"redd_domains" = ["cli/domains/ai.json", "cli/domains/retail.json"]

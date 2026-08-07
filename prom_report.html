@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signal audit — prometheus_infra.csv</title>
+<style>
+ :root { --ink:#1a1a1a; --sub:#666; --line:#e3e3e3; --bg:#fafafa; }
+ * { box-sizing:border-box; }
+ body { font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",
+        Roboto,Helvetica,Arial,sans-serif; color:var(--ink);
+        background:var(--bg); margin:0; padding:32px 20px; }
+ .wrap { max-width:980px; margin:0 auto; }
+ h1 { font-size:22px; margin:0 0 4px; }
+ h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em;
+       color:var(--sub); margin:34px 0 10px; font-weight:600; }
+ .file { color:var(--sub); font-size:13px; margin-bottom:24px;
+          font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+ .card { background:#fff; border:1px solid var(--line); border-radius:10px;
+          padding:20px 22px; }
+ .headline { font-size:30px; font-weight:650; color:#ef6c00;
+              line-height:1.15; }
+ .headline small { display:block; font-size:15px; font-weight:400;
+                    color:var(--ink); margin-top:10px; }
+ .stats { display:flex; gap:34px; margin-top:18px; padding-top:16px;
+           border-top:1px solid var(--line); flex-wrap:wrap; }
+ .stat b { display:block; font-size:21px; font-weight:600; }
+ .stat span { font-size:12px; color:var(--sub); }
+ table { border-collapse:collapse; width:100%; font-size:13px;
+          background:#fff; }
+ th,td { border:1px solid var(--line); padding:6px 9px; text-align:left; }
+ th { background:#f4f4f4; font-weight:600; }
+ td.num { text-align:right; font-variant-numeric:tabular-nums;
+           font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+ .heat { overflow-x:auto; }
+ .heat table { font-size:11px; }
+ .heat td { text-align:center; padding:5px 6px; min-width:52px;
+             font-variant-numeric:tabular-nums; }
+ .heat th.rowh { position:sticky; left:0; background:#f4f4f4;
+                  max-width:170px; }
+ .heat th.colh { font-size:10px; writing-mode:vertical-rl;
+                  transform:rotate(180deg); height:110px; padding:5px 3px; }
+ .bar { background:#eee; border-radius:3px; height:9px; width:110px; }
+ .bar i { display:block; background:#ef6c00; height:100%;
+           border-radius:3px; }
+ ul { margin:0; padding-left:20px; }
+ li { margin:5px 0; }
+ .none { color:var(--sub); font-style:italic; }
+ .warn { background:#fff8e1; border:1px solid #ffe082; border-radius:8px;
+          padding:13px 16px; margin-top:16px; font-size:14px; }
+ .sub { color:var(--sub); font-size:13px; }
+ .notes { color:var(--sub); font-size:13px; }
+ footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--line);
+           color:var(--sub); font-size:12px; }
+</style></head><body><div class="wrap">
+
+<h1>Signal audit</h1>
+<div class="file">/sessions/peaceful-happy-knuth/mnt/THE CONSTRAINT PROJECT/signal-audit/prometheus_infra.csv</div>
+
+<div class="card">
+  <div class="headline">5.6 independent signals
+    <small>from 11 metrics over 437 rows. Moderate redundancy. Some consolidation is possible.</small>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>11</b><span>metrics supplied</span></div>
+    <div class="stat"><b>5.6</b><span>independent signals</span></div>
+    <div class="stat"><b>7</b><span>components for 95% variance</span></div>
+    <div class="stat"><b>1</b><span>definitional identities</span></div>
+    <div class="stat"><b>2</b><span>redundancy clusters</span></div>
+  </div>
+  
+</div>
+
+<h2>Correlation matrix (differenced)</h2>
+<div class="heat card"><table>
+<tr><th></th><th class="colh">demo_api_http_requests_in_progress</th><th class="colh">demo_disk_usage_bytes</th><th class="colh">methodGET_status200</th><th class="colh">methodGET_status404</th><th class="colh">node_load1</th><th class="colh">node_load15</th><th class="colh">node_load5</th><th class="colh">node_memory_Buffers_bytes</th><th class="colh">node_memory_Cached_bytes</th><th class="colh">node_memory_MemAvailable_bytes</th><th class="colh">request_rate_total</th></tr>
+<tr><th class="rowh">demo_api_http_requests_in_progress</th><td style="background:rgba(198,40,40,0.900)" title="demo_api_http_requests_in_progress ~ demo_api_http_requests_in_progress: r=+1.000">+1.00</td><td style="background:rgba(21,101,192,0.060)" title="demo_api_http_requests_in_progress ~ demo_disk_usage_bytes: r=-0.000">-0.00</td><td style="background:rgba(198,40,40,0.158)" title="demo_api_http_requests_in_progress ~ methodGET_status200: r=+0.116">+0.12</td><td style="background:rgba(198,40,40,0.151)" title="demo_api_http_requests_in_progress ~ methodGET_status404: r=+0.108">+0.11</td><td style="background:rgba(21,101,192,0.091)" title="demo_api_http_requests_in_progress ~ node_load1: r=-0.037">-0.04</td><td style="background:rgba(21,101,192,0.101)" title="demo_api_http_requests_in_progress ~ node_load15: r=-0.049">-0.05</td><td style="background:rgba(21,101,192,0.097)" title="demo_api_http_requests_in_progress ~ node_load5: r=-0.044">-0.04</td><td style="background:rgba(198,40,40,0.127)" title="demo_api_http_requests_in_progress ~ node_memory_Buffers_bytes: r=+0.079">+0.08</td><td style="background:rgba(198,40,40,0.092)" title="demo_api_http_requests_in_progress ~ node_memory_Cached_bytes: r=+0.038">+0.04</td><td style="background:rgba(198,40,40,0.106)" title="demo_api_http_requests_in_progress ~ node_memory_MemAvailable_bytes: r=+0.055">+0.05</td><td style="background:rgba(198,40,40,0.154)" title="demo_api_http_requests_in_progress ~ request_rate_total: r=+0.112">+0.11</td></tr>
+<tr><th class="rowh">demo_disk_usage_bytes</th><td style="background:rgba(21,101,192,0.060)" title="demo_disk_usage_bytes ~ demo_api_http_requests_in_progress: r=-0.000">-0.00</td><td style="background:rgba(198,40,40,0.900)" title="demo_disk_usage_bytes ~ demo_disk_usage_bytes: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.106)" title="demo_disk_usage_bytes ~ methodGET_status200: r=+0.055">+0.05</td><td style="background:rgba(198,40,40,0.106)" title="demo_disk_usage_bytes ~ methodGET_status404: r=+0.055">+0.05</td><td style="background:rgba(198,40,40,0.106)" title="demo_disk_usage_bytes ~ node_load1: r=+0.055">+0.05</td><td style="background:rgba(21,101,192,0.084)" title="demo_disk_usage_bytes ~ node_load15: r=-0.029">-0.03</td><td style="background:rgba(21,101,192,0.070)" title="demo_disk_usage_bytes ~ node_load5: r=-0.011">-0.01</td><td style="background:rgba(21,101,192,0.062)" title="demo_disk_usage_bytes ~ node_memory_Buffers_bytes: r=-0.002">-0.00</td><td style="background:rgba(21,101,192,0.062)" title="demo_disk_usage_bytes ~ node_memory_Cached_bytes: r=-0.002">-0.00</td><td style="background:rgba(21,101,192,0.094)" title="demo_disk_usage_bytes ~ node_memory_MemAvailable_bytes: r=-0.040">-0.04</td><td style="background:rgba(198,40,40,0.106)" title="demo_disk_usage_bytes ~ request_rate_total: r=+0.055">+0.06</td></tr>
+<tr><th class="rowh">methodGET_status200</th><td style="background:rgba(198,40,40,0.158)" title="methodGET_status200 ~ demo_api_http_requests_in_progress: r=+0.116">+0.12</td><td style="background:rgba(198,40,40,0.106)" title="methodGET_status200 ~ demo_disk_usage_bytes: r=+0.055">+0.05</td><td style="background:rgba(198,40,40,0.900)" title="methodGET_status200 ~ methodGET_status200: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.885)" title="methodGET_status200 ~ methodGET_status404: r=+0.982">+0.98</td><td style="background:rgba(198,40,40,0.093)" title="methodGET_status200 ~ node_load1: r=+0.040">+0.04</td><td style="background:rgba(198,40,40,0.163)" title="methodGET_status200 ~ node_load15: r=+0.123">+0.12</td><td style="background:rgba(198,40,40,0.145)" title="methodGET_status200 ~ node_load5: r=+0.101">+0.10</td><td style="background:rgba(198,40,40,0.086)" title="methodGET_status200 ~ node_memory_Buffers_bytes: r=+0.031">+0.03</td><td style="background:rgba(198,40,40,0.079)" title="methodGET_status200 ~ node_memory_Cached_bytes: r=+0.023">+0.02</td><td style="background:rgba(21,101,192,0.149)" title="methodGET_status200 ~ node_memory_MemAvailable_bytes: r=-0.106">-0.11</td><td style="background:rgba(198,40,40,0.899)" title="methodGET_status200 ~ request_rate_total: r=+0.999">+1.00</td></tr>
+<tr><th class="rowh">methodGET_status404</th><td style="background:rgba(198,40,40,0.151)" title="methodGET_status404 ~ demo_api_http_requests_in_progress: r=+0.108">+0.11</td><td style="background:rgba(198,40,40,0.106)" title="methodGET_status404 ~ demo_disk_usage_bytes: r=+0.055">+0.05</td><td style="background:rgba(198,40,40,0.885)" title="methodGET_status404 ~ methodGET_status200: r=+0.982">+0.98</td><td style="background:rgba(198,40,40,0.900)" title="methodGET_status404 ~ methodGET_status404: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.108)" title="methodGET_status404 ~ node_load1: r=+0.057">+0.06</td><td style="background:rgba(198,40,40,0.168)" title="methodGET_status404 ~ node_load15: r=+0.129">+0.13</td><td style="background:rgba(198,40,40,0.154)" title="methodGET_status404 ~ node_load5: r=+0.112">+0.11</td><td style="background:rgba(198,40,40,0.080)" title="methodGET_status404 ~ node_memory_Buffers_bytes: r=+0.024">+0.02</td><td style="background:rgba(198,40,40,0.071)" title="methodGET_status404 ~ node_memory_Cached_bytes: r=+0.013">+0.01</td><td style="background:rgba(21,101,192,0.132)" title="methodGET_status404 ~ node_memory_MemAvailable_bytes: r=-0.086">-0.09</td><td style="background:rgba(198,40,40,0.889)" title="methodGET_status404 ~ request_rate_total: r=+0.987">+0.99</td></tr>
+<tr><th class="rowh">node_load1</th><td style="background:rgba(21,101,192,0.091)" title="node_load1 ~ demo_api_http_requests_in_progress: r=-0.037">-0.04</td><td style="background:rgba(198,40,40,0.106)" title="node_load1 ~ demo_disk_usage_bytes: r=+0.055">+0.05</td><td style="background:rgba(198,40,40,0.093)" title="node_load1 ~ methodGET_status200: r=+0.040">+0.04</td><td style="background:rgba(198,40,40,0.108)" title="node_load1 ~ methodGET_status404: r=+0.057">+0.06</td><td style="background:rgba(198,40,40,0.900)" title="node_load1 ~ node_load1: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.533)" title="node_load1 ~ node_load15: r=+0.563">+0.56</td><td style="background:rgba(198,40,40,0.703)" title="node_load1 ~ node_load5: r=+0.765">+0.77</td><td style="background:rgba(198,40,40,0.090)" title="node_load1 ~ node_memory_Buffers_bytes: r=+0.036">+0.04</td><td style="background:rgba(198,40,40,0.073)" title="node_load1 ~ node_memory_Cached_bytes: r=+0.016">+0.02</td><td style="background:rgba(198,40,40,0.099)" title="node_load1 ~ node_memory_MemAvailable_bytes: r=+0.047">+0.05</td><td style="background:rgba(198,40,40,0.095)" title="node_load1 ~ request_rate_total: r=+0.042">+0.04</td></tr>
+<tr><th class="rowh">node_load15</th><td style="background:rgba(21,101,192,0.101)" title="node_load15 ~ demo_api_http_requests_in_progress: r=-0.049">-0.05</td><td style="background:rgba(21,101,192,0.084)" title="node_load15 ~ demo_disk_usage_bytes: r=-0.029">-0.03</td><td style="background:rgba(198,40,40,0.163)" title="node_load15 ~ methodGET_status200: r=+0.123">+0.12</td><td style="background:rgba(198,40,40,0.168)" title="node_load15 ~ methodGET_status404: r=+0.129">+0.13</td><td style="background:rgba(198,40,40,0.533)" title="node_load15 ~ node_load1: r=+0.563">+0.56</td><td style="background:rgba(198,40,40,0.900)" title="node_load15 ~ node_load15: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.829)" title="node_load15 ~ node_load5: r=+0.916">+0.92</td><td style="background:rgba(198,40,40,0.073)" title="node_load15 ~ node_memory_Buffers_bytes: r=+0.016">+0.02</td><td style="background:rgba(21,101,192,0.084)" title="node_load15 ~ node_memory_Cached_bytes: r=-0.028">-0.03</td><td style="background:rgba(21,101,192,0.078)" title="node_load15 ~ node_memory_MemAvailable_bytes: r=-0.021">-0.02</td><td style="background:rgba(198,40,40,0.164)" title="node_load15 ~ request_rate_total: r=+0.123">+0.12</td></tr>
+<tr><th class="rowh">node_load5</th><td style="background:rgba(21,101,192,0.097)" title="node_load5 ~ demo_api_http_requests_in_progress: r=-0.044">-0.04</td><td style="background:rgba(21,101,192,0.070)" title="node_load5 ~ demo_disk_usage_bytes: r=-0.011">-0.01</td><td style="background:rgba(198,40,40,0.145)" title="node_load5 ~ methodGET_status200: r=+0.101">+0.10</td><td style="background:rgba(198,40,40,0.154)" title="node_load5 ~ methodGET_status404: r=+0.112">+0.11</td><td style="background:rgba(198,40,40,0.703)" title="node_load5 ~ node_load1: r=+0.765">+0.77</td><td style="background:rgba(198,40,40,0.829)" title="node_load5 ~ node_load15: r=+0.916">+0.92</td><td style="background:rgba(198,40,40,0.900)" title="node_load5 ~ node_load5: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.071)" title="node_load5 ~ node_memory_Buffers_bytes: r=+0.013">+0.01</td><td style="background:rgba(21,101,192,0.083)" title="node_load5 ~ node_memory_Cached_bytes: r=-0.028">-0.03</td><td style="background:rgba(198,40,40,0.087)" title="node_load5 ~ node_memory_MemAvailable_bytes: r=+0.032">+0.03</td><td style="background:rgba(198,40,40,0.146)" title="node_load5 ~ request_rate_total: r=+0.102">+0.10</td></tr>
+<tr><th class="rowh">node_memory_Buffers_bytes</th><td style="background:rgba(198,40,40,0.127)" title="node_memory_Buffers_bytes ~ demo_api_http_requests_in_progress: r=+0.079">+0.08</td><td style="background:rgba(21,101,192,0.062)" title="node_memory_Buffers_bytes ~ demo_disk_usage_bytes: r=-0.002">-0.00</td><td style="background:rgba(198,40,40,0.086)" title="node_memory_Buffers_bytes ~ methodGET_status200: r=+0.031">+0.03</td><td style="background:rgba(198,40,40,0.080)" title="node_memory_Buffers_bytes ~ methodGET_status404: r=+0.024">+0.02</td><td style="background:rgba(198,40,40,0.090)" title="node_memory_Buffers_bytes ~ node_load1: r=+0.036">+0.04</td><td style="background:rgba(198,40,40,0.073)" title="node_memory_Buffers_bytes ~ node_load15: r=+0.016">+0.02</td><td style="background:rgba(198,40,40,0.071)" title="node_memory_Buffers_bytes ~ node_load5: r=+0.013">+0.01</td><td style="background:rgba(198,40,40,0.900)" title="node_memory_Buffers_bytes ~ node_memory_Buffers_bytes: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.633)" title="node_memory_Buffers_bytes ~ node_memory_Cached_bytes: r=+0.682">+0.68</td><td style="background:rgba(21,101,192,0.162)" title="node_memory_Buffers_bytes ~ node_memory_MemAvailable_bytes: r=-0.122">-0.12</td><td style="background:rgba(198,40,40,0.085)" title="node_memory_Buffers_bytes ~ request_rate_total: r=+0.030">+0.03</td></tr>
+<tr><th class="rowh">node_memory_Cached_bytes</th><td style="background:rgba(198,40,40,0.092)" title="node_memory_Cached_bytes ~ demo_api_http_requests_in_progress: r=+0.038">+0.04</td><td style="background:rgba(21,101,192,0.062)" title="node_memory_Cached_bytes ~ demo_disk_usage_bytes: r=-0.002">-0.00</td><td style="background:rgba(198,40,40,0.079)" title="node_memory_Cached_bytes ~ methodGET_status200: r=+0.023">+0.02</td><td style="background:rgba(198,40,40,0.071)" title="node_memory_Cached_bytes ~ methodGET_status404: r=+0.013">+0.01</td><td style="background:rgba(198,40,40,0.073)" title="node_memory_Cached_bytes ~ node_load1: r=+0.016">+0.02</td><td style="background:rgba(21,101,192,0.084)" title="node_memory_Cached_bytes ~ node_load15: r=-0.028">-0.03</td><td style="background:rgba(21,101,192,0.083)" title="node_memory_Cached_bytes ~ node_load5: r=-0.028">-0.03</td><td style="background:rgba(198,40,40,0.633)" title="node_memory_Cached_bytes ~ node_memory_Buffers_bytes: r=+0.682">+0.68</td><td style="background:rgba(198,40,40,0.900)" title="node_memory_Cached_bytes ~ node_memory_Cached_bytes: r=+1.000">+1.00</td><td style="background:rgba(21,101,192,0.100)" title="node_memory_Cached_bytes ~ node_memory_MemAvailable_bytes: r=-0.048">-0.05</td><td style="background:rgba(198,40,40,0.079)" title="node_memory_Cached_bytes ~ request_rate_total: r=+0.023">+0.02</td></tr>
+<tr><th class="rowh">node_memory_MemAvailable_bytes</th><td style="background:rgba(198,40,40,0.106)" title="node_memory_MemAvailable_bytes ~ demo_api_http_requests_in_progress: r=+0.055">+0.05</td><td style="background:rgba(21,101,192,0.094)" title="node_memory_MemAvailable_bytes ~ demo_disk_usage_bytes: r=-0.040">-0.04</td><td style="background:rgba(21,101,192,0.149)" title="node_memory_MemAvailable_bytes ~ methodGET_status200: r=-0.106">-0.11</td><td style="background:rgba(21,101,192,0.132)" title="node_memory_MemAvailable_bytes ~ methodGET_status404: r=-0.086">-0.09</td><td style="background:rgba(198,40,40,0.099)" title="node_memory_MemAvailable_bytes ~ node_load1: r=+0.047">+0.05</td><td style="background:rgba(21,101,192,0.078)" title="node_memory_MemAvailable_bytes ~ node_load15: r=-0.021">-0.02</td><td style="background:rgba(198,40,40,0.087)" title="node_memory_MemAvailable_bytes ~ node_load5: r=+0.032">+0.03</td><td style="background:rgba(21,101,192,0.162)" title="node_memory_MemAvailable_bytes ~ node_memory_Buffers_bytes: r=-0.122">-0.12</td><td style="background:rgba(21,101,192,0.100)" title="node_memory_MemAvailable_bytes ~ node_memory_Cached_bytes: r=-0.048">-0.05</td><td style="background:rgba(198,40,40,0.900)" title="node_memory_MemAvailable_bytes ~ node_memory_MemAvailable_bytes: r=+1.000">+1.00</td><td style="background:rgba(21,101,192,0.147)" title="node_memory_MemAvailable_bytes ~ request_rate_total: r=-0.103">-0.10</td></tr>
+<tr><th class="rowh">request_rate_total</th><td style="background:rgba(198,40,40,0.154)" title="request_rate_total ~ demo_api_http_requests_in_progress: r=+0.112">+0.11</td><td style="background:rgba(198,40,40,0.106)" title="request_rate_total ~ demo_disk_usage_bytes: r=+0.055">+0.06</td><td style="background:rgba(198,40,40,0.899)" title="request_rate_total ~ methodGET_status200: r=+0.999">+1.00</td><td style="background:rgba(198,40,40,0.889)" title="request_rate_total ~ methodGET_status404: r=+0.987">+0.99</td><td style="background:rgba(198,40,40,0.095)" title="request_rate_total ~ node_load1: r=+0.042">+0.04</td><td style="background:rgba(198,40,40,0.164)" title="request_rate_total ~ node_load15: r=+0.123">+0.12</td><td style="background:rgba(198,40,40,0.146)" title="request_rate_total ~ node_load5: r=+0.102">+0.10</td><td style="background:rgba(198,40,40,0.085)" title="request_rate_total ~ node_memory_Buffers_bytes: r=+0.030">+0.03</td><td style="background:rgba(198,40,40,0.079)" title="request_rate_total ~ node_memory_Cached_bytes: r=+0.023">+0.02</td><td style="background:rgba(21,101,192,0.147)" title="request_rate_total ~ node_memory_MemAvailable_bytes: r=-0.103">-0.10</td><td style="background:rgba(198,40,40,0.900)" title="request_rate_total ~ request_rate_total: r=+1.000">+1.00</td></tr>
+</table></div>
+
+<h2>Definitional identities (|r| ≥ 0.999)</h2>
+<table><tr><th>Metric</th><th>Metric</th><th>r</th></tr><tr><td>methodGET_status200</td><td>request_rate_total</td><td class='num'>+0.9999</td></tr></table>
+<p class="sub">Pairs this tightly coupled are typically the same quantity
+recorded twice — a rate and its inverse, a count and its percentage, a
+total and its complement. Each pair costs a dashboard slot and returns
+nothing.</p>
+
+<h2>Redundancy clusters (|r| ≥ 0.9)</h2>
+<div class="card"><ul><li><b>3 metrics:</b> methodGET_status200, methodGET_status404, request_rate_total</li><li><b>2 metrics:</b> node_load15, node_load5</li></ul></div>
+<p class="sub">Linked by single-linkage: if A tracks B and B tracks C, all
+three sit in one cluster even when A and C are not directly correlated.
+One well-chosen representative per cluster carries most of what the
+cluster carries.</p>
+
+<h2>What each metric contributes</h2>
+<table><tr><th>Metric</th><th>Unique variance</th><th></th>
+<th>Best predicted by</th><th>r</th></tr><tr><td>demo_disk_usage_bytes</td><td class='num'>100%</td><td><div class='bar'><i style='width:100%'></i></div></td><td>request_rate_total</td><td class='num'>0.06</td></tr><tr><td>demo_api_http_requests_in_progress</td><td class='num'>98%</td><td><div class='bar'><i style='width:98%'></i></div></td><td>methodGET_status200</td><td class='num'>0.12</td></tr><tr><td>node_memory_MemAvailable_bytes</td><td class='num'>96%</td><td><div class='bar'><i style='width:96%'></i></div></td><td>node_memory_Buffers_bytes</td><td class='num'>0.12</td></tr><tr><td>node_memory_Cached_bytes</td><td class='num'>54%</td><td><div class='bar'><i style='width:54%'></i></div></td><td>node_memory_Buffers_bytes</td><td class='num'>0.68</td></tr><tr><td>node_memory_Buffers_bytes</td><td class='num'>53%</td><td><div class='bar'><i style='width:53%'></i></div></td><td>node_memory_Cached_bytes</td><td class='num'>0.68</td></tr><tr><td>node_load1</td><td class='num'>30%</td><td><div class='bar'><i style='width:30%'></i></div></td><td>node_load5</td><td class='num'>0.77</td></tr><tr><td>node_load15</td><td class='num'>12%</td><td><div class='bar'><i style='width:12%'></i></div></td><td>node_load5</td><td class='num'>0.92</td></tr><tr><td>node_load5</td><td class='num'>7%</td><td><div class='bar'><i style='width:7%'></i></div></td><td>node_load15</td><td class='num'>0.92</td></tr><tr><td>methodGET_status404</td><td class='num'>2%</td><td><div class='bar'><i style='width:2%'></i></div></td><td>request_rate_total</td><td class='num'>0.99</td></tr><tr><td>methodGET_status200</td><td class='num'>0%</td><td><div class='bar'><i style='width:1%'></i></div></td><td>request_rate_total</td><td class='num'>1.00</td></tr><tr><td>request_rate_total</td><td class='num'>0%</td><td><div class='bar'><i style='width:1%'></i></div></td><td>methodGET_status200</td><td class='num'>1.00</td></tr></table>
+
+<p class="sub">Unique variance is what remains unexplained when every
+other metric in the set is used to predict this one — the honest measure
+of what deleting it would cost. Low values are candidates for removal;
+high values are load-bearing.</p>
+
+<h2>Derived aggregates</h2>
+<div class="card"><p class='none'>None detected.</p></div>
+
+<h2>Nonlinear dependence</h2>
+<div class="card"><table><tr><th>Pair</th><th>r</th><th>MI vs gaussian</th></tr><tr><td>node_memory_Cached_bytes ~ node_memory_MemAvailable_bytes</td><td class='num'>+0.06</td><td class='num'>155.1×</td></tr><tr><td>node_load15 ~ node_memory_Cached_bytes</td><td class='num'>-0.06</td><td class='num'>55.2×</td></tr><tr><td>demo_disk_usage_bytes ~ node_memory_MemAvailable_bytes</td><td class='num'>-0.12</td><td class='num'>42.5×</td></tr><tr><td>node_memory_Buffers_bytes ~ node_memory_Cached_bytes</td><td class='num'>-0.22</td><td class='num'>42.0×</td></tr><tr><td>demo_disk_usage_bytes ~ node_memory_Buffers_bytes</td><td class='num'>+0.46</td><td class='num'>10.2×</td></tr><tr><td>demo_disk_usage_bytes ~ node_load5</td><td class='num'>-0.15</td><td class='num'>6.7×</td></tr></table><p class='sub'>These pairs are related but would look independent on the correlation matrix above.</p></div>
+
+<h2>Columns not audited</h2><div class="card"><ul class='notes'><li>&#x27;timestamp&#x27; — ignored by request</li></ul></div>
+
+<footer>
+Generated by signal_audit.py v0.1.0. Headline figures use
+first-differenced series to remove shared trend. Independent-signal count
+is the participation ratio of the correlation spectrum — a continuous
+measure, so it will rarely be a whole number. This tool describes the
+statistical structure of the columns you supplied; it does not know what
+any metric means, and a redundant metric may still be worth keeping for
+reasons it cannot see.
+</footer>
+</div></body></html>

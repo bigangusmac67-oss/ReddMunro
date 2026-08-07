@@ -1,0 +1,59 @@
+{
+  "domain": "retail",
+  "version": 1,
+  "title": "Retail / e-commerce analytics",
+
+  "_contract": "This file RENAMES and CONTEXTUALISES. It must never assert a cause the engine cannot distinguish. See cli/domains/ai.json for the full reasoning; the short form is that `basis_conflicts` cannot tell an injected factor from an exposed duplicate, so no entry here states which one happened.",
+
+  "denominator_hints": [
+    "sessions",
+    "visits",
+    "unique_visitors",
+    "impressions",
+    "orders"
+  ],
+  "_denominator_note": "Candidates only, declared with --scale-by. Retail has no single denominator: funnel-stage metrics normalise on sessions, spend metrics on orders, ad metrics on impressions. Declaring several costs about 2% of a run each, so declare every one that plausibly applies rather than guessing.",
+
+  "already_scale_free": [
+    "conversion_rate",
+    "bounce_rate",
+    "cart_abandonment_rate",
+    "aov",
+    "return_rate",
+    "ctr"
+  ],
+  "_exempt_note": "Suggested --scale-exempt. Rates and per-order averages are already normalised; dividing them by sessions injects a 1/traffic factor and can make two unrelated rates look near-identical.",
+
+  "checks": {
+    "basis-conflict": {
+      "label": "Counts moving together on traffic",
+      "consistent_with": "a traffic event — a campaign, a promotion, a seasonal peak — lifting every raw count at once, so page views, cart adds and orders rise together without any change in behaviour.",
+      "but_also": "a real funnel relationship, or a definitional one: orders divided by sessions IS conversion rate, so if both are on the board that pair will inflate for a correct reason.",
+      "distinguish_by": "declare --scale-by sessions and read the per-session view. Counts that only moved with traffic will flatten; behaviour that genuinely changed will not."
+    },
+    "trend-confound": {
+      "label": "Everything rises in the same weeks",
+      "consistent_with": "shared seasonality or a sustained campaign period lifting the whole board.",
+      "but_also": "genuine growth.",
+      "distinguish_by": "the differenced basis, which the headline already uses. The raw-vs-differenced gap is how much of the apparent structure was just the calendar."
+    },
+    "subset-sum": {
+      "label": "A total that is its channels added up",
+      "consistent_with": "a roll-up column — total revenue as the sum of its channels, sitewide sessions as the sum of regions — carrying nothing the parts lack.",
+      "but_also": "nothing. This is arithmetic, holding on at least 99% of rows.",
+      "distinguish_by": "not needed. Archive the roll-up, keep the channels. Note the engine protects the parts from archiving: every member of an additive family looks individually redundant, and an unguarded ranking would offer them all."
+    },
+    "identity": {
+      "label": "One number on two tiles",
+      "consistent_with": "a metric and its own restatement — a rate and its complement, a count and its percentage.",
+      "but_also": "two measures that happen to track each other over this window.",
+      "distinguish_by": "check a longer window, or a period containing a known disruption. Definitional pairs never separate."
+    },
+    "derived-aggregate": {
+      "label": "A best-of or worst-of tile",
+      "consistent_with": "an index taking the max or min across categories. Fully determined by its inputs, yet linearly unpredictable, so naive scoring ranks it as a primary signal.",
+      "but_also": "nothing structural — but which input is currently the extreme may itself be the thing an operator watches.",
+      "distinguish_by": "ask whether anyone acts on the index itself or on knowing which category is driving it."
+    }
+  }
+}

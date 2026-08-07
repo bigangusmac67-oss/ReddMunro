@@ -1,0 +1,51 @@
+{
+  "domain": "ai",
+  "version": 1,
+  "title": "AI model evaluation",
+  "_contract": "This file RENAMES and CONTEXTUALISES. It must never assert a cause the engine cannot distinguish. Every check below carries `consistent_with`, `but_also` and `distinguish_by` rather than a verdict, because `basis_conflicts` reports that a pair's correlation rose after a transform and CANNOT tell whether a factor was injected (a defect) or a real duplicate exposed (a finding). Both were observed on one corpus: ROA~ROE 0.60 to 0.98 was injected; NETINC~ROA 0.06 to 0.9997 was real. Same signature. A lexicon entry that prints one reading as fact makes the tool claim what the engine explicitly refuses to.",
+  "denominator_hints": [
+    "output_tokens",
+    "completion_tokens",
+    "n_turns",
+    "latency_ms"
+  ],
+  "_denominator_note": "Candidates only. The engine never infers a denominator; the operator declares one with --scale-by. Listed here so the operator knows what is usually worth declaring in this domain.",
+  "already_scale_free": [
+    "accuracy",
+    "pass_rate",
+    "win_rate",
+    "elo",
+    "calibration_error",
+    "reasoning_score"
+  ],
+  "_exempt_note": "Suggested --scale-exempt. These are already rates or bounded scores. Dividing them by a size INJECTS a size factor — measured on bank data, dividing two rates by total assets took their correlation from +0.60 to +0.98 and pushed them past the clustering threshold. Suggestion, not a default: the operator declares.",
+  "checks": {
+    "basis-conflict": {
+      "label": "Score moves with output length",
+      "consistent_with": "verbosity effects — a grader rewarding length, so the score tracks how much was written rather than how well.",
+      "but_also": "a real relationship — longer chains genuinely solving harder problems better. Nothing in the arithmetic separates these.",
+      "distinguish_by": "hold length roughly fixed and see whether the score still separates models; or grade a length-matched subset. If the score survives length-matching, it is measuring reasoning.",
+      "_status": "UNVALIDATED — no corpus with output-length data has been run. Treat as a hypothesis to check, not a finding this tool has ever made."
+    },
+    "identity": {
+      "label": "Two evals reporting one number",
+      "consistent_with": "the same benchmark under two names, or a metric and its own rescaling.",
+      "but_also": "two genuinely different evals that happen to rank models identically on this sample.",
+      "distinguish_by": "check whether they diverge on any model in the set. If none does, one of them is free.",
+      "_status": "Validated: three benchmarks appeared twice on one leaderboard at r = 1.0000 (Raw and normalised)."
+    },
+    "subset-sum": {
+      "label": "Composite score is its parts added up",
+      "consistent_with": "an aggregate leaderboard column carrying no information its components lack.",
+      "but_also": "nothing — this one is arithmetic. The relation holds on at least 99% of rows or it is not reported.",
+      "distinguish_by": "not needed. Archive the composite, keep the parts; the composite is recomputable and the parts are not."
+    },
+    "trend-confound": {
+      "label": "Everything improved together",
+      "consistent_with": "a shared driver — a base-model upgrade, a prompt change, a grader revision — lifting every eval at once.",
+      "but_also": "genuine broad capability gain.",
+      "distinguish_by": "the differenced basis. If the correlation survives differencing, it is not just the shared timeline."
+    }
+  },
+  "_validation": "Scored against 541 models from the HuggingFace Open LLM Leaderboard on 02/08/2026 — see AI_EVAL_PREREG.md. VALIDATED: heavy redundancy (15 columns to 2.24 effective signals), duplicate benchmarks as exact identities, nonlinear coupling between scores and model size. NOT VALIDATED: the basis-conflict entry. That corpus carries no token-count or response-length column, so the verbosity reading has never been tested against data. Five other predictions holding does not license it."
+}

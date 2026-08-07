@@ -1,0 +1,2310 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Signal Audit API",
+    "description": "Measures how many independent signals a set of metrics actually carries, and which columns can be removed without losing information.\n\n**Headline figures use first-differenced series.** Metrics that all grow over time correlate from shared trend alone; the raw view is returned alongside so the gap is visible.\n\n**Executable exports are gated.** The engine proves statistical redundancy; it cannot see that a metric is the sole condition on a paging monitor. A completed blast-radius worksheet is required before Terraform or exclusion plans are returned.\n\n**No cost figure is synthesised.** Column redundancy and billing cardinality differ by orders of magnitude, so savings estimates require customer-supplied unit cost and, ideally, a cardinality map.",
+    "version": "1.1"
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Liveness and versions",
+        "operationId": "health_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tiers": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Published subscription limits",
+        "operationId": "tiers_v1_tiers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/preflight": {
+      "post": {
+        "tags": [
+          "audits"
+        ],
+        "summary": "Shape, quota verdict and execution mode without analysing",
+        "description": "Shape, quota verdict and execution mode WITHOUT running the\nanalysis. Lets the client show limits and set expectations before\ncommitting to a long job.",
+        "operationId": "preflight_v1_audits_preflight_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preflight_v1_audits_preflight_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreflightResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/v1/audits": {
+      "post": {
+        "tags": [
+          "audits"
+        ],
+        "summary": "Run an audit (inline when small, queued when large)",
+        "description": "Run an audit.\n\nmode=auto (default) runs inline when small and queues when large,\nper the tier's threshold. The response always states which happened,\nso a client never has to infer it from the shape of the body.\n\nBasis declaration. `basis` names which lens the headline reports:\nraw, differenced, or ratio:COL. `scale_by` is a comma-separated list\nof denominators, each adding one ratio basis; `scale_exempt` names\ncolumns that are ALREADY scale-free and must not be divided \u2014\ndividing a rate by a size injects the very confound the ratio basis\nremoves. All optional: omitting them reproduces the previous\nresponse exactly, and the contract reports `basis.declared: false`\nso a client can enforce what the server does not.\n\n`require_basis=true` makes the server refuse an undeclared request.\nIt is opt-in rather than default because defaulting it on would\nbreak every existing caller.",
+        "operationId": "create_audit_v1_audits_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_audit_v1_audits_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncAuditResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncAuditResponse"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "audits"
+        ],
+        "summary": "List this account's audits",
+        "operationId": "list_audits_v1_audits_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}": {
+      "get": {
+        "tags": [
+          "audits"
+        ],
+        "summary": "Job status, and the contract once complete",
+        "operationId": "get_audit_v1_audits__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/usage": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Consumption against the tier allowance",
+        "description": "Consumption for the current account. Sums the metering unit\nacross completed audits; a real deployment reads this from the\nbilling store rather than from job memory.",
+        "operationId": "usage_v1_usage_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}/exports": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "What can be downloaded now, and what is gated",
+        "description": "What can be downloaded now, and what is still gated behind the\nblast-radius attestation.",
+        "operationId": "list_exports_v1_audits__job_id__exports_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportAvailability"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}/exports/review-worksheet": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Blast-radius worksheet (CSV) \u2014 request this first",
+        "description": "The artefact that should be requested first: statistical evidence\npre-filled, operational columns blank for the operator.",
+        "operationId": "export_worksheet_v1_audits__job_id__exports_review_worksheet_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}/exports/column-manifest": {
+      "get": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Keep/drop decision per column (CSV), ungated",
+        "description": "Keep/drop per column. A document, not a change \u2014 ungated.",
+        "operationId": "export_manifest_v1_audits__job_id__exports_column_manifest_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}/exports/terraform": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Reversible Terraform; requires a completed worksheet",
+        "description": "Reversible Terraform, unlocked by a completed review worksheet.\n\nRequires the worksheet as an upload rather than a checkbox: the\nattestation is per metric, and a single 'I confirm' control cannot\nrepresent that a reviewer checked eleven metrics against four\nsystems each.",
+        "operationId": "export_terraform_v1_audits__job_id__exports_terraform_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_export_terraform_v1_audits__job_id__exports_terraform_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "428": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}/exports/datadog-exclusions": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Reversible exclusion plan (JSON); requires a worksheet",
+        "operationId": "export_exclusions_v1_audits__job_id__exports_datadog_exclusions_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_export_exclusions_v1_audits__job_id__exports_datadog_exclusions_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audits/{job_id}/cost-estimate": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Re-price an audit against your own unit cost",
+        "description": "Re-price an existing audit against customer-supplied parameters.\n\nSeparate from the audit itself so a customer can adjust unit cost and\ncardinality without paying for a re-analysis.",
+        "operationId": "cost_estimate_v1_audits__job_id__cost_estimate_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostModelIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostEstimate"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AsyncAuditResponse": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "async",
+            "title": "Mode"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "poll": {
+            "type": "string",
+            "title": "Poll"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "job_id",
+          "status",
+          "poll"
+        ],
+        "title": "AsyncAuditResponse"
+      },
+      "AuditContract": {
+        "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version",
+            "examples": [
+              "1.0"
+            ]
+          },
+          "engine_version": {
+            "type": "string",
+            "title": "Engine Version"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id",
+            "description": "Content hash. Stable across re-runs of the same data; the natural idempotency key."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          },
+          "trend_confound": {
+            "$ref": "#/components/schemas/TrendConfound"
+          },
+          "identity_pairs": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityPair"
+            },
+            "type": "array",
+            "title": "Identity Pairs"
+          },
+          "redundancy_clusters": {
+            "items": {
+              "$ref": "#/components/schemas/RedundancyCluster"
+            },
+            "type": "array",
+            "title": "Redundancy Clusters"
+          },
+          "standalone_metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Standalone Metrics"
+          },
+          "nonlinear_couplings": {
+            "items": {
+              "$ref": "#/components/schemas/NonlinearCoupling"
+            },
+            "type": "array",
+            "title": "Nonlinear Couplings"
+          },
+          "nonlinear_analysis_skipped": {
+            "type": "boolean",
+            "title": "Nonlinear Analysis Skipped"
+          },
+          "derived_aggregates": {
+            "items": {
+              "$ref": "#/components/schemas/DerivedAggregate"
+            },
+            "type": "array",
+            "title": "Derived Aggregates"
+          },
+          "metric_badges": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Badge"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Metric Badges",
+            "description": "Structural badges per metric, from a closed vocabulary. A metric may carry several."
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BasisInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Added in contract 1.1. Absent from responses generated before that version; never absent from new ones."
+          },
+          "basis_conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/BasisConflict"
+            },
+            "type": "array",
+            "title": "Basis Conflicts"
+          },
+          "pruning_queue": {
+            "items": {
+              "$ref": "#/components/schemas/PruneCandidate"
+            },
+            "type": "array",
+            "title": "Pruning Queue"
+          },
+          "pruning_summary": {
+            "$ref": "#/components/schemas/PruningSummary"
+          },
+          "estimated_monthly_saving": {
+            "$ref": "#/components/schemas/CostEstimate"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Warning_"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "excluded_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Excluded Columns",
+            "description": "Columns not audited, each with a reason. Must be shown: a column vanishing silently turns an audit into an audit of something else."
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contract_version",
+          "engine_version",
+          "summary",
+          "trend_confound",
+          "identity_pairs",
+          "redundancy_clusters",
+          "standalone_metrics",
+          "nonlinear_couplings",
+          "nonlinear_analysis_skipped",
+          "derived_aggregates",
+          "metric_badges",
+          "pruning_queue",
+          "pruning_summary",
+          "estimated_monthly_saving",
+          "warnings",
+          "excluded_columns",
+          "usage"
+        ],
+        "title": "AuditContract"
+      },
+      "Badge": {
+        "type": "string",
+        "enum": [
+          "identity",
+          "max_aggregate",
+          "min_aggregate",
+          "mean_aggregate",
+          "nonlinear",
+          "redundant",
+          "standalone",
+          "load_bearing"
+        ],
+        "title": "Badge"
+      },
+      "Basis": {
+        "type": "string",
+        "enum": [
+          "identity",
+          "unique_variance"
+        ],
+        "title": "Basis"
+      },
+      "BasisConflict": {
+        "properties": {
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "a": {
+            "type": "string",
+            "title": "A"
+          },
+          "b": {
+            "type": "string",
+            "title": "B"
+          },
+          "r_reference": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R Reference"
+          },
+          "r_basis": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R Basis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "basis",
+          "a",
+          "b",
+          "r_reference",
+          "r_basis"
+        ],
+        "title": "BasisConflict",
+        "description": "A pair a transform made MORE correlated than it was.\n\nAmbiguous by nature and deliberately not resolved server-side: the\nbasis either injected a shared factor (a defect) or exposed a real\nduplicate (a finding). Dividing ROA and ROE by total assets took r\nfrom +0.60 to +0.98 -- injected. Dividing net income by total assets\ntook its correlation with ROA from +0.06 to +0.9997 -- exposed,\nbecause that quotient IS return on assets. Same signature."
+      },
+      "BasisInfo": {
+        "properties": {
+          "headline": {
+            "type": "string",
+            "title": "Headline",
+            "examples": [
+              "differenced"
+            ]
+          },
+          "declared": {
+            "type": "boolean",
+            "title": "Declared",
+            "description": "False means the engine assumed a basis rather than being told one."
+          },
+          "available": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available"
+          },
+          "per_basis": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BasisSummary"
+            },
+            "type": "object",
+            "title": "Per Basis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "headline",
+          "declared",
+          "available",
+          "per_basis"
+        ],
+        "title": "BasisInfo",
+        "description": "Which lens produced the headline, and whether anyone chose it.\n\n`declared` is the field a CI client should assert on. False means\nthe engine fell back to treating rows as ordered observations --\nan assumption that fails SILENTLY on entity-indexed data, returning\nvery nearly the right number for the wrong reason. The server does\nnot refuse an undeclared request by default, because that would\nbreak every existing caller; it states the assumption instead and\nlets the client enforce."
+      },
+      "BasisSummary": {
+        "properties": {
+          "effective_signals": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Signals"
+          },
+          "metrics": {
+            "type": "integer",
+            "title": "Metrics"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "effective_signals",
+          "metrics",
+          "rows"
+        ],
+        "title": "BasisSummary",
+        "description": "One computed basis. Every basis is computed on every run."
+      },
+      "Body_create_audit_v1_audits_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "ignore": {
+            "type": "string",
+            "title": "Ignore",
+            "default": ""
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "auto"
+          },
+          "scale_by": {
+            "type": "string",
+            "title": "Scale By",
+            "default": ""
+          },
+          "scale_exempt": {
+            "type": "string",
+            "title": "Scale Exempt",
+            "default": ""
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis",
+            "default": ""
+          },
+          "require_basis": {
+            "type": "boolean",
+            "title": "Require Basis",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_create_audit_v1_audits_post"
+      },
+      "Body_export_exclusions_v1_audits__job_id__exports_datadog_exclusions_post": {
+        "properties": {
+          "worksheet": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Worksheet"
+          },
+          "namespace": {
+            "type": "string",
+            "title": "Namespace",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "worksheet"
+        ],
+        "title": "Body_export_exclusions_v1_audits__job_id__exports_datadog_exclusions_post"
+      },
+      "Body_export_terraform_v1_audits__job_id__exports_terraform_post": {
+        "properties": {
+          "worksheet": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Worksheet"
+          },
+          "namespace": {
+            "type": "string",
+            "title": "Namespace",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "worksheet"
+        ],
+        "title": "Body_export_terraform_v1_audits__job_id__exports_terraform_post"
+      },
+      "Body_preflight_v1_audits_preflight_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "ignore": {
+            "type": "string",
+            "title": "Ignore",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_preflight_v1_audits_preflight_post"
+      },
+      "Confidence": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ],
+        "title": "Confidence"
+      },
+      "CostEstimate": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "False when no unit cost was supplied. No figure is synthesised: column redundancy and billing cardinality differ by orders of magnitude."
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Confidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions",
+            "description": "Display these next to the figure, not behind a tooltip."
+          },
+          "series_affected": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Affected"
+          },
+          "metrics_affected": {
+            "type": "integer",
+            "title": "Metrics Affected",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "title": "CostEstimate"
+      },
+      "CostModelIn": {
+        "properties": {
+          "unit_cost_per_series_month": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Per Series Month",
+            "description": "From your own contract. No vendor price list is held server-side, because a stale constant would produce wrong figures indefinitely."
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "USD"
+          },
+          "series_per_metric": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Series Per Metric",
+            "description": "Billable series per column. Supplying this for every affected metric is what raises confidence from low to medium."
+          },
+          "retention_multiplier": {
+            "type": "number",
+            "title": "Retention Multiplier",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "title": "CostModelIn"
+      },
+      "DerivedAggregate": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "aggregate_of_others": {
+            "type": "string",
+            "enum": [
+              "max",
+              "min",
+              "mean"
+            ],
+            "title": "Aggregate Of Others"
+          },
+          "match_fraction": {
+            "type": "number",
+            "title": "Match Fraction",
+            "description": "Fraction of rows on which the metric EQUALS the aggregate. Equality, not correlation.",
+            "examples": [
+              0.76
+            ]
+          },
+          "r": {
+            "type": "number",
+            "title": "R"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "aggregate_of_others",
+          "match_fraction",
+          "r"
+        ],
+        "title": "DerivedAggregate"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "examples": [
+              "quota_exceeded"
+            ]
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "allowed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          },
+          "missing_metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Missing Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "ExportAvailability": {
+        "properties": {
+          "always_available": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Always Available"
+          },
+          "gated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gated"
+          },
+          "gate_satisfied": {
+            "type": "boolean",
+            "title": "Gate Satisfied"
+          },
+          "candidates": {
+            "type": "integer",
+            "title": "Candidates"
+          },
+          "attested": {
+            "type": "integer",
+            "title": "Attested"
+          },
+          "missing_attestation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Attestation"
+          },
+          "cleared_for_change": {
+            "type": "integer",
+            "title": "Cleared For Change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "always_available",
+          "gated",
+          "gate_satisfied",
+          "candidates",
+          "attested",
+          "missing_attestation",
+          "cleared_for_change"
+        ],
+        "title": "ExportAvailability"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IdentityPair": {
+        "properties": {
+          "metric_a": {
+            "type": "string",
+            "title": "Metric A"
+          },
+          "metric_b": {
+            "type": "string",
+            "title": "Metric B"
+          },
+          "r": {
+            "type": "number",
+            "title": "R",
+            "examples": [
+              0.999269
+            ]
+          },
+          "relationship": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "inverse"
+            ],
+            "title": "Relationship"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric_a",
+          "metric_b",
+          "r",
+          "relationship"
+        ],
+        "title": "IdentityPair"
+      },
+      "JobResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "created_at": {
+            "type": "number",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditContract"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ignore": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ignore"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "tier",
+          "status",
+          "stage",
+          "created_at"
+        ],
+        "title": "JobResponse"
+      },
+      "NonlinearCoupling": {
+        "properties": {
+          "metric_a": {
+            "type": "string",
+            "title": "Metric A"
+          },
+          "metric_b": {
+            "type": "string",
+            "title": "Metric B"
+          },
+          "r": {
+            "type": "number",
+            "title": "R",
+            "description": "Near zero by selection: these pairs look independent to correlation."
+          },
+          "mi_vs_gaussian": {
+            "type": "number",
+            "title": "Mi Vs Gaussian",
+            "description": "Empirical mutual information as a multiple of what a Gaussian with the same r would carry.",
+            "examples": [
+              111.7
+            ]
+          },
+          "mutual_information_bits": {
+            "type": "number",
+            "title": "Mutual Information Bits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric_a",
+          "metric_b",
+          "r",
+          "mi_vs_gaussian",
+          "mutual_information_bits"
+        ],
+        "title": "NonlinearCoupling"
+      },
+      "PreflightResponse": {
+        "properties": {
+          "metrics": {
+            "type": "integer",
+            "title": "Metrics"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "cells": {
+            "type": "integer",
+            "title": "Cells"
+          },
+          "rows_per_metric": {
+            "type": "number",
+            "title": "Rows Per Metric"
+          },
+          "within_quota": {
+            "type": "boolean",
+            "title": "Within Quota"
+          },
+          "quota_error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Error"
+          },
+          "recommended_mode": {
+            "type": "string",
+            "enum": [
+              "sync",
+              "async"
+            ],
+            "title": "Recommended Mode"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metrics",
+          "rows",
+          "cells",
+          "rows_per_metric",
+          "within_quota",
+          "recommended_mode",
+          "tier"
+        ],
+        "title": "PreflightResponse"
+      },
+      "PruneCandidate": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/Basis",
+            "description": "What the recommendation rests on. Blockers are scoped to this: sparse history weakens a unique_variance judgement but not an identity."
+          },
+          "unique_variance": {
+            "type": "number",
+            "title": "Unique Variance"
+          },
+          "best_predictor": {
+            "type": "string",
+            "title": "Best Predictor"
+          },
+          "best_predictor_r": {
+            "type": "number",
+            "title": "Best Predictor R"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence"
+          },
+          "identity_partner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Partner"
+          },
+          "identity_r": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity R"
+          },
+          "keep_as_representative": {
+            "type": "boolean",
+            "title": "Keep As Representative",
+            "description": "True for the surviving member of an identity pair. Never recommended for deletion \u2014 removing both halves destroys the quantity."
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blockers",
+            "description": "Reasons not to act. Empty is required for recommended=true."
+          },
+          "recommended": {
+            "type": "boolean",
+            "title": "Recommended"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "basis",
+          "unique_variance",
+          "best_predictor",
+          "best_predictor_r",
+          "confidence",
+          "keep_as_representative",
+          "blockers",
+          "recommended"
+        ],
+        "title": "PruneCandidate"
+      },
+      "PruningSummary": {
+        "properties": {
+          "candidates_total": {
+            "type": "integer",
+            "title": "Candidates Total"
+          },
+          "recommended_count": {
+            "type": "integer",
+            "title": "Recommended Count"
+          },
+          "recommended_metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recommended Metrics"
+          },
+          "potential_reduction_pct": {
+            "type": "number",
+            "title": "Potential Reduction Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidates_total",
+          "recommended_count",
+          "recommended_metrics",
+          "potential_reduction_pct"
+        ],
+        "title": "PruningSummary"
+      },
+      "RedundancyCluster": {
+        "properties": {
+          "cluster_id": {
+            "type": "integer",
+            "title": "Cluster Id"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "size",
+          "metrics"
+        ],
+        "title": "RedundancyCluster"
+      },
+      "Severity": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ],
+        "title": "Severity"
+      },
+      "Summary": {
+        "properties": {
+          "metrics_supplied": {
+            "type": "integer",
+            "title": "Metrics Supplied",
+            "examples": [
+              53
+            ]
+          },
+          "rows_analysed": {
+            "type": "integer",
+            "title": "Rows Analysed",
+            "examples": [
+              455
+            ]
+          },
+          "independent_signals": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Independent Signals",
+            "description": "Participation ratio of the correlation spectrum. Continuous, so rarely a whole number.",
+            "examples": [
+              5.097
+            ]
+          },
+          "true_signal_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "True Signal Ratio",
+            "description": "independent_signals / metrics_supplied. The headline figure.",
+            "examples": [
+              0.0962
+            ]
+          },
+          "components_for_95pct": {
+            "type": "integer",
+            "title": "Components For 95Pct",
+            "examples": [
+              20
+            ]
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "redundancy_band": {
+            "type": "string",
+            "enum": [
+              "low",
+              "moderate",
+              "heavy"
+            ],
+            "title": "Redundancy Band"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metrics_supplied",
+          "rows_analysed",
+          "independent_signals",
+          "true_signal_ratio",
+          "components_for_95pct",
+          "verdict",
+          "redundancy_band"
+        ],
+        "title": "Summary"
+      },
+      "SyncAuditResponse": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "sync",
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "const": "succeeded",
+            "title": "Status"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AuditContract"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "status",
+          "result"
+        ],
+        "title": "SyncAuditResponse"
+      },
+      "TrendConfound": {
+        "properties": {
+          "raw_independent_signals": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Independent Signals"
+          },
+          "differenced_independent_signals": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Differenced Independent Signals"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap",
+            "description": "raw minus differenced. Large negative values mean the raw view is mostly shared calendar trend."
+          },
+          "trend_dominated": {
+            "type": "boolean",
+            "title": "Trend Dominated"
+          },
+          "headline_basis": {
+            "type": "string",
+            "const": "differenced",
+            "title": "Headline Basis",
+            "description": "Always differenced. Metrics that all grow over time correlate for that reason alone.",
+            "default": "differenced"
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_independent_signals",
+          "differenced_independent_signals",
+          "gap",
+          "trend_dominated"
+        ],
+        "title": "TrendConfound"
+      },
+      "Usage": {
+        "properties": {
+          "metrics": {
+            "type": "integer",
+            "title": "Metrics"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "billable_cells": {
+            "type": "integer",
+            "title": "Billable Cells",
+            "description": "The metering unit. Computed from data actually analysed, after dropped columns and listwise deletion."
+          },
+          "uploaded_bytes": {
+            "type": "integer",
+            "title": "Uploaded Bytes"
+          },
+          "columns_supplied": {
+            "type": "integer",
+            "title": "Columns Supplied"
+          },
+          "columns_analysed": {
+            "type": "integer",
+            "title": "Columns Analysed"
+          },
+          "rows_dropped": {
+            "type": "integer",
+            "title": "Rows Dropped"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "title": "Duration Ms"
+          },
+          "engine_version": {
+            "type": "string",
+            "title": "Engine Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metrics",
+          "rows",
+          "billable_cells",
+          "uploaded_bytes",
+          "columns_supplied",
+          "columns_analysed",
+          "rows_dropped",
+          "duration_ms",
+          "engine_version"
+        ],
+        "title": "Usage"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Warning_": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "low_rows_per_metric"
+            ]
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "Warning_"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "audits",
+      "description": "Run and retrieve audits."
+    },
+    {
+      "name": "exports",
+      "description": "Cleanup artefacts. Nothing generated is destructive: Terraform collapses cardinality via tag configuration and is reversed by restoring tags."
+    },
+    {
+      "name": "billing",
+      "description": "Tiers, quota and consumption."
+    },
+    {
+      "name": "system",
+      "description": "Health and metadata."
+    }
+  ]
+}

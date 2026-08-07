@@ -1,0 +1,87 @@
+name: demo integrity
+
+# The deployed page fetches signal_audit.py over HTTP and runs it in
+# Pyodide. That copy can drift from the engine the tests actually cover,
+# and when it does every number on the landing page is wrong in a way
+# nobody notices. This job is the thing that stops that shipping.
+#
+# NOTE ON PATHS. These steps assume this repository's root IS the
+# signal-audit directory — i.e. wrangler.toml, build_demo.py and demo/
+# sit at the top level. If you instead commit the parent folder, add
+#   defaults: { run: { working-directory: signal-audit } }
+# to each job. The previous version of this file mixed the two and
+# would have failed on the first push; it had never run, because there
+# was no repository.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install numpy
+      - name: Engine tests
+        run: python test_signal_audit.py
+      - name: Demo assets match source
+        run: python build_demo.py --check
+      - name: Deployment placeholders were filled in
+        run: |
+          if grep -rq "REPLACE-WITH-YOUR" demo/; then
+            echo "::error::demo/ still contains REPLACE-WITH-YOUR placeholders."
+            grep -rn "REPLACE-WITH-YOUR" demo/ || true
+            exit 1
+          fi
+
+  # The engine runs in WebAssembly for every visitor, and wasm32 is a
+  # 32-bit platform. An int64 index that is free on x86-64 raised
+  # TypeError on every audit on the live site for five days while 134
+  # tests passed, because not one of them ran on the platform the
+  # product actually ships to. This job is that gap closed: it runs the
+  # real engine inside real Pyodide.
+  browser-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install numpy
+      - run: npm install pyodide@0.26.4
+
+      # Neither figure is hardcoded. CPython computes the answer, then
+      # the same engine on the same bytes must reproduce it inside
+      # Pyodide — so a legitimate change moves both together and the
+      # check keeps meaning something.
+      - name: Expected result under CPython
+        run: python ci/expected.py > /tmp/expected.json
+      - name: Same engine, same answer under wasm32
+        run: node ci/wasm_check.mjs /tmp/expected.json
+
+  deploy:
+    needs: [verify, browser-engine]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install numpy
+
+      # Rebuild rather than trusting the committed demo/. `verify`
+      # already proved the two agree; this makes the deployed bytes a
+      # product of the source rather than of whoever last remembered
+      # to run the build script.
+      - run: python build_demo.py
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

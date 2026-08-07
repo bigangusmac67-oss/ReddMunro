@@ -1,0 +1,38 @@
+Redd Munro
+Copyright 2026 Shaun Cooper
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+------------------------------------------------------------------------
+
+TRADEMARK
+
+The Apache License grants no rights in trade names or trademarks
+(section 6). "Redd Munro" and "redd" as a product name are not covered
+by the licence above.
+
+You may fork this code, modify it, and ship it commercially. Please do
+not call the result Redd Munro, and do not present a fork as though it
+carried the evidence in this repository — those pre-registrations were
+scored against a specific engine, and a modified one has not been
+through them.
+
+------------------------------------------------------------------------
+
+WHAT THE EVIDENCE COVERS
+
+REAL_DASHBOARDS.md, SCALE_BASIS_PREREG.md, MI_SCALING_PREREG.md and
+AI_EVAL_PREREG.md record predictions made BEFORE the corresponding data
+was fetched, and scored afterwards including the misses. The commit
+history is what makes that ordering checkable rather than merely
+asserted; a fork that rewrites history is not making the same claim.
+
+------------------------------------------------------------------------
+
+DEPENDENCIES
+
+The engine depends only on NumPy (BSD 3-Clause).
+
+The browser page loads Pyodide (Mozilla Public License 2.0) from a
+public CDN at runtime. It is not vendored here and is not covered by
+this licence.

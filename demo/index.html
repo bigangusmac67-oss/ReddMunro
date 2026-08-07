@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Redd Munro — find out how much of your dashboard is measuring the same thing</title>
+
+<!-- SOCIAL / SEO
+     The domain placeholder appears here, in robots.txt and in sitemap.xml.
+     Fill all three with:  python configure_site.py --domain yourdomain.com
+     Absolute URLs are required: Slack, LinkedIn and X will not resolve a
+     relative og:image, and the card silently renders blank instead of
+     failing loudly. Note this comment deliberately avoids spelling the
+     placeholder token — a mention inside a comment is not a placeholder,
+     but a literal-string check cannot tell the difference and would fail
+     CI forever on a piece of documentation. -->
+<meta name="description" content="Point it at a dashboard CSV export. It reports how many genuinely distinct things you are measuring, which panels are one measurement shown twice, and which are safe to archive — with the evidence for each. Runs in your browser; nothing is uploaded.">
+<link rel="canonical" href="https://reddmunro.com/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Redd Munro">
+<meta property="og:title" content="Two of these panels are the same series. Which two?">
+<meta property="og:description" content="On a live Prometheus instance, methodGET_status200 and request_rate_total matched at r = 0.99987. Not similar — identical, on two panels, alerting separately. Audit your own dashboard export in the browser.">
+<meta property="og:image" content="https://reddmunro.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://reddmunro.com/">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Two of these panels are the same series. Which two?">
+<meta name="twitter:description" content="r = 0.99987 between two panels on a live Prometheus instance. Audit your own dashboard export in the browser — nothing is uploaded.">
+<meta name="twitter:image" content="https://reddmunro.com/og.png">
+<meta name="theme-color" content="#0b0f17">
+<!--
+  ZERO-TRUST DEMO
+  ===============
+  The engine runs entirely in the browser via Pyodide. The CSV is read
+  by the page, handed to Python as a STRING through audit_text(), and
+  never leaves the machine — there is no upload endpoint in this page
+  and no network call after the initial asset load. That is checkable:
+  open the network tab and drop a file.
+
+  This is not a marketing claim about our servers. It is a property of
+  the architecture: signal_audit.py depends on numpy and the standard
+  library only, so it compiles to WebAssembly with no service behind it.
+
+  BROWSER EXECUTION IS VERIFIED. A smoke test against
+  sample_dashboard.csv matched the CLI figure-for-figure with zero
+  console errors, including np.linalg.eigvalsh and np.linalg.lstsq —
+  the two LAPACK calls with the largest WASM surface. What is NOT
+  recorded is a specific browser and version, so "works in X" is still
+  an unsupported claim.
+
+  WHERE THE DOMAIN LEXICONS LIVE
+  ==============================
+  They are PRESENTATION DATA and are deliberately kept out of the
+  WebAssembly runtime. Pyodide loads numpy and the engine and does
+  arithmetic; JavaScript fetches the JSON and does naming. Three
+  consequences, all wanted:
+
+    1. Switching lens re-renders from the payload already in memory —
+       no re-run, no second pass through the engine.
+    2. The engine stays semantically blind. Nothing about "retail" or
+       "ai" can reach the mathematics, which is the property the whole
+       design rests on.
+    3. Adding a lexicon needs no rebuild of anything Python.
+
+  The cost is that build_demo.py has a third asset class to keep in
+  sync, and its drift guard covers it.
+-->
+<style>
+:root{
+  --bg:#0b0f17; --panel:#111827; --panel-2:#0f1623; --line:#1f2937;
+  --line-2:#374151; --ink:#e5e7eb; --ink-dim:#9ca3af; --ink-faint:#6b7280;
+  --accent:#60a5fa; --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:960px;margin:0 auto;padding:0 20px 80px}
+
+.app-header{border-bottom:1px solid var(--line);background:var(--panel-2);
+  position:sticky;top:0;z-index:10}
+.app-header .inner{max-width:960px;margin:0 auto;padding:16px 20px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand h1{margin:0;font-size:15px;letter-spacing:.16em;font-weight:600;font-family:var(--mono)}
+.brand .subtitle{display:block;margin-top:3px;font-size:12px;color:var(--ink-faint)}
+.nav-links a{color:var(--ink-dim);text-decoration:none;font-size:13px;margin-left:18px;
+  border-bottom:1px solid transparent;padding-bottom:2px}
+.nav-links a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:20px 22px;margin:16px 0}
+.card h2{margin:0 0 12px;font-size:11px;letter-spacing:.14em;font-weight:600;
+  color:var(--ink-faint);text-transform:uppercase;font-family:var(--mono)}
+.sub{color:var(--ink-dim);font-size:13px}
+.faint{color:var(--ink-faint);font-size:12px}
+.err{color:var(--err)}
+
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.step{border-left:2px solid var(--line-2);padding-left:12px}
+.step b{display:block;font-size:13px;margin-bottom:2px}
+.step .n{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em}
+
+#drop{border:1.5px dashed var(--line-2);border-radius:10px;padding:34px 20px;
+  text-align:center;cursor:pointer;transition:.15s;background:var(--panel-2)}
+#drop:hover,#drop.over{border-color:var(--accent);background:#101a2b}
+#drop.busy{opacity:.55;cursor:progress}
+.try{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:-4px 0 4px;padding:0 2px}
+button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);
+  border-radius:6px;padding:8px 14px;font-size:13px;font-family:inherit;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.try .faint{flex:1;min-width:240px}
+.exports{display:flex;gap:10px;flex-wrap:wrap;margin:2px 0 14px}
+.exports button{display:flex;gap:8px;align-items:baseline}
+.exports button b{font-weight:600}
+.exports button span{color:var(--muted);font-size:12px}
+.exports button:hover:not(:disabled) span{color:inherit}
+
+/* hero */
+.hero{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+.hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;
+  color:var(--accent);text-transform:uppercase;margin-bottom:16px}
+.hero h2{font-size:40px;line-height:1.15;margin:0 0 18px;font-weight:600;
+  letter-spacing:-.02em;max-width:20ch}
+.hero h2 em{font-style:normal;color:var(--accent)}
+.hero p{font-size:17px;color:var(--ink-dim);max-width:60ch;margin:0 0 14px}
+.hero .cta{margin-top:28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.hero .cta a{background:var(--accent);color:#06101f;text-decoration:none;
+  padding:11px 20px;border-radius:7px;font-size:14px;font-weight:600}
+.hero .cta a.ghost{background:transparent;color:var(--ink-dim);
+  border:1px solid var(--line-2)}
+.hero .cta a.ghost:hover{color:var(--accent);border-color:var(--accent)}
+
+/* hero proof */
+.proof{background:var(--panel);border:1px solid var(--line-2);border-radius:9px;
+  padding:16px 18px;margin:22px 0 26px;max-width:60ch}
+.proof-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.proof-row code{font-family:var(--mono);font-size:13px;background:var(--panel-2);
+  padding:4px 9px;border-radius:5px;color:var(--ink)}
+.proof-row .vs{color:var(--ink-faint);font-size:12px}
+.proof-row b{font-family:var(--mono);color:var(--warn);font-size:15px;margin-left:auto}
+
+.samp{background:#0f1d2e;border:1px solid #1e3a5f;border-radius:9px;
+  padding:13px 17px;margin:16px 0;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.samp b{font-size:13px;color:var(--accent)}
+.samp span{font-size:12.5px;color:var(--ink-dim)}
+
+/* section headings */
+.sec{padding:44px 0 8px}
+.sec h3{font-size:22px;margin:0 0 8px;font-weight:600;letter-spacing:-.01em}
+.sec .lede{color:var(--ink-dim);font-size:15px;max-width:66ch;margin:0 0 6px}
+
+/* feature grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:18px}
+.feat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.feat .ic{font-family:var(--mono);color:var(--accent);font-size:13px;margin-bottom:8px}
+.feat b{display:block;font-size:14px;margin-bottom:6px}
+.feat span{color:var(--ink-dim);font-size:13px}
+
+/* evidence table */
+.ev td,.ev th{padding:9px 12px 9px 0}
+.ev td.name{color:var(--ink)}
+.ev tr td:last-child{color:var(--ink-dim);font-family:inherit;font-size:12.5px}
+
+/* footer */
+footer{border-top:1px solid var(--line);margin-top:60px;padding:28px 0 60px;
+  color:var(--ink-faint);font-size:12.5px}
+footer .row{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
+footer code{font-family:var(--mono)}
+footer a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(96,165,250,.4)}
+footer a:hover{border-bottom-color:var(--accent)}
+
+@media(max-width:640px){ .hero h2{font-size:30px} .hero{padding:40px 0 30px} }
+
+.headline{font-size:26px;font-weight:600;letter-spacing:-.01em}
+.headline .num{color:var(--accent)}
+.basis-tag{display:inline-block;margin-left:10px;padding:3px 9px;border-radius:5px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;vertical-align:middle}
+.basis-tag.assumed{background:#3a2c07;color:var(--warn);border:1px solid #6b5410}
+.basis-tag.declared{background:#0f2a1f;color:var(--ok);border:1px solid #17513a}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:14px 0 8px}
+.bar>i{display:block;height:100%;background:var(--accent)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin-top:18px}
+.kpi{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.kpi b{display:block;font-size:21px;font-family:var(--mono);font-weight:600}
+.kpi span{font-size:11px;color:var(--ink-faint);letter-spacing:.06em;text-transform:uppercase}
+
+.grade{display:inline-block;padding:2px 10px;border-radius:5px;font-family:var(--mono);font-weight:700}
+.grade.A,.grade.B{background:#0f2a1f;color:var(--ok)}
+.grade.C,.grade.D{background:#3a2c07;color:var(--warn)}
+
+.chk{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
+.chk:last-child{border-bottom:0}
+.chk .m{font-family:var(--mono);width:16px;flex:none;text-align:center}
+.chk.fired .m{color:var(--warn)}
+.chk.clear .m{color:var(--ok)}
+.chk.na .m{color:var(--ink-faint)}
+.chk .t{font-size:14px}
+.chk.na .t{color:var(--ink-faint)}
+.chk .d{font-size:12.5px;color:var(--ink-dim);margin-top:3px}
+
+.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+select{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);
+  border-radius:6px;padding:7px 11px;font-size:13px;font-family:inherit}
+select:focus{outline:none;border-color:var(--accent)}
+.lens-item{border-left:2px solid var(--accent);padding:2px 0 2px 13px;margin:16px 0}
+.lens-item h3{margin:0 0 7px;font-size:14px;font-weight:600}
+.lens-row{display:grid;grid-template-columns:110px 1fr;gap:10px;font-size:13px;padding:3px 0}
+.lens-row .k{color:var(--ink-faint);font-family:var(--mono);font-size:11px;
+  letter-spacing:.05em;padding-top:2px}
+.lens-row.tell .k{color:var(--accent)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--ink-faint);font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;padding:6px 10px 6px 0;
+  border-bottom:1px solid var(--line-2)}
+td{padding:6px 10px 6px 0;border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:12.5px}
+td.name{font-family:inherit;font-size:13px}
+.num-c{text-align:right}
+
+details.about{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:16px 0}
+details.about>summary{padding:18px 22px;cursor:pointer;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-faint);font-family:var(--mono);
+  font-weight:600;list-style:none}
+details.about>summary::-webkit-details-marker{display:none}
+details.about>summary::after{content:" ▾";color:var(--accent)}
+details.about[open]>summary::after{content:" ▴"}
+details.about .body{padding:0 22px 22px}
+details.about h3{font-size:14px;margin:20px 0 7px;color:var(--accent)}
+details.about p{color:var(--ink-dim);font-size:13.5px;margin:9px 0}
+details.about ul{color:var(--ink-dim);font-size:13.5px;padding-left:19px;margin:9px 0}
+details.about li{margin:5px 0}
+details.about code{font-family:var(--mono);font-size:12px;background:var(--panel-2);
+  padding:1px 5px;border-radius:3px;color:var(--ink)}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="inner">
+    <div class="brand">
+      <h1>REDD MUNRO</h1>
+      <span class="subtitle">Find out how much of your dashboard is measuring the same thing</span>
+    </div>
+    <nav class="nav-links">
+      <a href="#auditor">Run it</a>
+      <a href="#evidence">Evidence</a>
+      <a href="#about">About</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow">For platform &amp; SRE teams</div>
+    <h2>Two of these panels are <em>the same series</em>. Which two?</h2>
+
+    <div class="proof">
+      <div class="proof-row">
+        <code>methodGET_status200</code><span class="vs">vs</span><code>request_rate_total</code>
+        <b>r = 0.99987</b>
+      </div>
+      <span class="faint">Found on a live Prometheus instance. Not similar — the
+        same numbers, on two separate panels, alerting separately.</span>
+    </div>
+
+    <p>Two hundred tiles. Four pages for one incident. And nobody has deleted a
+       panel in two years, because nobody can prove which ones are safe to
+       remove.</p>
+    <p>This reads a dashboard export and tells you how many <strong>genuinely
+       distinct things</strong> it measures, which panels are one measurement
+       shown twice, and which are safe to archive — with the evidence for each.</p>
+
+    <div class="cta">
+      <a href="#auditor">See it run on real infra data</a>
+      <a href="#auditor" class="ghost">Or drop your own export</a>
+    </div>
+    <p class="faint" style="margin-top:18px">Runs in your browser. Your file is
+       read in this tab and never uploaded — open the network panel and check.</p>
+  </section>
+
+  <section class="sec">
+    <h3>What it checks</h3>
+    <p class="lede">Every check runs on every file — and <strong>the ones that
+      did not fire get printed too</strong>, along with the one we have not built
+      yet. You can tell what a tool actually covers by what it admits it
+      doesn't.</p>
+    <div class="grid">
+      <div class="feat"><div class="ic">01</div><b>Everything spiked, so everything correlated</b>
+        <span>During an incident every metric moves at once, and raw correlation
+        calls them all related. Both the raw and the change-over-time view are
+        computed and shown, so a shared timeline doesn't get read as a shared
+        cause.</span></div>
+
+      <div class="feat"><div class="ic">02</div><b>The same number on two tiles</b>
+        <span>A rate and its complement. A count and its percentage. Bytes and
+        megabytes. Pairs matching at r ≥ 0.999 are one measurement displayed
+        twice — and you get told which one to keep.</span></div>
+
+      <div class="feat"><div class="ic">03</div><b>Totals that are just their parts</b>
+        <span>A request total that is exactly the per-status counters added up.
+        Archive the total, keep the parts — <em>never</em> the reverse, because
+        every member of that family looks individually redundant and dropping
+        them all loses the lot.</span></div>
+
+      <div class="feat"><div class="ic">04</div><b>Worst-of and max() panels</b>
+        <span>A cluster-health tile taking the max across nodes is fully
+        determined by its inputs, yet naive scoring ranks it your most important
+        signal — because which node is worst keeps changing.</span></div>
+
+      <div class="feat"><div class="ic">05</div><b>Related, but your correlation check says no</b>
+        <span>Two metrics sitting at r ≈ 0.03 that are strongly dependent anyway:
+        a threshold effect, a saturation curve, a queue that only backs up past
+        80%. Measured against a shuffled null so the estimator's own noise isn't
+        reported as a finding.</span></div>
+
+      <div class="feat"><div class="ic">06</div><b>When normalising changes the answer</b>
+        <span>Divide by request rate and two panels suddenly look identical.
+        That's either a real duplicate you'd been missing, or an artefact you
+        just created. You get both readings and how to tell them apart — it will
+        not guess for you.</span></div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap" id="auditor">
+  <section class="sec"><h3>Run an audit</h3>
+    <p class="lede">Export any dashboard to CSV. Columns are metrics, rows are
+      timestamps. Nothing is uploaded.</p></section>
+
+  <div class="card">
+    <h2>How to use this</h2>
+    <div class="steps">
+      <div class="step"><span class="n">01</span><b>Drop your export</b>
+        <span class="sub">Grafana, Datadog, Prometheus — anything that produces a
+        CSV. First row is metric names. Read in this tab, never sent anywhere.</span></div>
+      <div class="step"><span class="n">02</span><b>Pick a lens</b>
+        <span class="sub">Optional. Renames the findings for your domain. It
+        cannot change a number, only what the finding is called.</span></div>
+      <div class="step"><span class="n">03</span><b>Start with what fired</b>
+        <span class="sub">Each finding names the metrics involved. Archive
+        candidates come with the evidence for why they're safe.</span></div>
+    </div>
+  </div>
+
+  <div id="drop" class="card">
+    <div id="dropmsg"><strong>Drop a CSV here</strong><br>
+      <span class="sub">or click to choose · nothing leaves this machine</span></div>
+    <input type="file" id="file" accept=".csv,text/csv" hidden>
+  </div>
+
+  <div class="try">
+    <button id="example" disabled>Try the example dashboard</button>
+    <span class="faint">No export to hand? This one is 17 metrics × 400 days,
+      built from <b>four</b> known drivers with two exact duplicates and one
+      nonlinear pair hidden in it. The audit comes back with 4.3 — it was never
+      told the answer.</span>
+  </div>
+
+  <div class="card" id="lenscard" style="display:none">
+    <h2>Domain lens</h2>
+    <div class="toolbar">
+      <select id="lens"><option value="">No lens — mathematical states only</option></select>
+      <span class="faint">Naming only. Re-renders in place; the engine does not run again.</span>
+    </div>
+    <div class="faint" style="margin-top:12px">The maths is identical in every
+      domain — a lens changes what a finding is <em>called</em>, never what it
+      is. Lenses ship for AI evaluation and retail. <strong>Neither has a
+      validated corpus behind it yet</strong>, so treat those as vocabulary
+      rather than as evidence; the results on this page are all from
+      infrastructure, public health, transit and banking data.
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+  <section class="sec" id="safety">
+    <h3>"Safe to archive" is a claim, so it has to be checked</h3>
+    <p class="lede">The real reason nobody prunes a dashboard is that whoever
+      deletes the wrong panel owns the next incident review. So nothing here
+      archives anything on its own.</p>
+    <div class="grid">
+      <div class="feat"><div class="ic">&rarr;</div><b>It can prove one thing</b>
+        <span>That a metric carries no variation the others don't already carry.
+        That is arithmetic, and it is checkable.</span></div>
+      <div class="feat"><div class="ic">&rarr;</div><b>It cannot see the rest</b>
+        <span>That the same metric is the sole condition on a paging rule, an SLO
+        error budget, or a compliance export. None of that is in a CSV of values,
+        and the tool says so rather than guessing.</span></div>
+      <div class="feat"><div class="ic">&rarr;</div><b>So it hands you a worksheet</b>
+        <span>Every candidate with the evidence for why it is listed, and columns
+        only you can fill: referenced by monitors, SLOs, runbooks, last queried.
+        Completing that <em>is</em> the safety check. It downloads with every
+        audit, next to a summary you can paste into the change request — one
+        that says on its own face that it is not a sign-off.</span></div>
+    </div>
+    <p class="faint" style="margin-top:16px">One guard worth knowing about: when a
+      total and its parts are all on the board, every one of them looks
+      individually redundant. An unguarded tool offers you the whole family.
+      This one protects the parts and offers only the total.</p>
+  </section>
+
+  <section class="sec" id="evidence">
+    <h3>We wrote down what we expected to find. Then we checked.</h3>
+    <p class="lede">A tool only ever pointed at data whose structure nobody knows
+      can never be caught being wrong. So the predictions go on disk <strong>before
+      the data is pulled</strong>, and get scored afterwards — misses included.
+      Several of the most useful results were our own bugs.</p>
+    <div class="card" style="margin-top:18px">
+      <table class="ev">
+        <tr><th>Dashboard</th><th>Shape</th><th>Result</th><th>What it found</th></tr>
+        <tr><td class="name">NYC COVID daily counts</td><td>53 × 455</td>
+          <td>5.1 signals</td><td>Raw view says 1.6 — during a pandemic every metric rides the same wave</td></tr>
+        <tr><td class="name">ACT air quality</td><td>12 × 1,094</td>
+          <td>4.7 signals</td><td>NO₂ and CO at r = 0.03 but 177× their Gaussian-implied dependence</td></tr>
+        <tr><td class="name">Prometheus infrastructure</td><td>11 × 437</td>
+          <td>5.6 signals</td><td>status=200 and request_rate identical at r = 0.99987</td></tr>
+        <tr><td class="name">FDIC bank call reports</td><td>39 × 1,915</td>
+          <td>2.5 → 14.8</td><td>Raw totals said 2.5. Normalising per-unit revealed 14.8 — size was hiding everything</td></tr>
+      </table>
+      <div class="faint" style="margin-top:14px">Worth knowing what that discipline
+        catches. Adding the totals check exposed a bug we had been shipping: when
+        a total and its parts are all on the board, every one of them looks
+        individually redundant — so the tool offered <strong>all six members</strong>
+        of one family for deletion at once. Take that advice and you lose the
+        whole thing. It is guarded now, and the episode is written up in the
+        public failure log rather than quietly patched.</div>
+    </div>
+  </section>
+
+  <details class="about" id="about">
+    <summary>About the engine &amp; author</summary>
+    <div class="body">
+      <p>One question: <strong>how many distinct things is this dashboard
+      actually measuring?</strong> A forty-panel board driven by four underlying
+      system states gives its owner the feeling of forty-fold coverage and the
+      reality of four. That gap is where duplicate alerts come from, and it is
+      what this measures.</p>
+
+      <p>It was built by someone who got tired of dashboards nobody trusted and
+      panels nobody would delete, and who wanted the argument settled with
+      evidence instead of opinion.</p>
+
+      <h3>How we know it works</h3>
+      <p>Before each dataset is pulled, what we expect to find gets written down
+      and committed. A tool only ever pointed at data whose structure nobody
+      knows can never be caught being wrong — so we make it possible to catch.
+      Every dataset in <code>REAL_DASHBOARDS.md</code> carries its predictions
+      and the score, misses included. Several of the most valuable results were
+      misses, because they turned out to be bugs in this tool rather than bad
+      guesses about the data.</p>
+
+      <h3>Structural invariants</h3>
+      <ul>
+        <li><strong>It never guesses how to read your data.</strong> Raw,
+        change-over-time, and per-unit views are all computed. Which one the
+        headline reports is something you declare — because a tool that guesses
+        wrong hands you a confident wrong answer, and that is the exact failure
+        this exists to catch.</li>
+        <li><strong>The engine is blind to meaning.</strong> It emits
+        mathematical states. Domain lenses rename them in this interface and
+        cannot reach the mathematics.</li>
+        <li><strong>Two readings, never a verdict.</strong> When normalising
+        makes two panels look identical, that is either a duplicate you had
+        missed or an artefact the normalising created. Both turned up in the same
+        dataset looking exactly alike. So you get both readings and the test that
+        separates them — you know your system, the arithmetic doesn't.</li>
+        <li><strong>Checks that did not fire are still shown.</strong> Anyone
+        can print a correlation matrix and a big number. The difference is the
+        list of ways this one was stopped from lying to you — including the check
+        we have not built, which is on the page rather than left off it.</li>
+      </ul>
+
+      <h3>What it does not do</h3>
+      <p>Stated here rather than buried. It does not detect a metric plotted
+      against its own rolling average — two designs were built and withdrawn on
+      evidence, and it renders as an unchecked circle rather than a claim. It
+      does not know what your metrics <em>mean</em>, so a statistically redundant
+      column may be worth keeping for contractual or diagnostic reasons.
+      Equal-occupancy binning degrades on integer counts with few distinct
+      values. And nothing here is causal: two metrics in a cluster may share a
+      driver, or one may cause the other, or both may be measuring an instrument
+      rather than the world.</p>
+
+      <h3>Where the name comes from</h3>
+      <p><strong>Redd Munro is not a person.</strong> Both halves are Scots, and
+      both describe the tool.</p>
+      <p><em>Redd</em> means to clear out and set in order — you redd up a room
+      before you can see what is in it. A <em>Munro</em> is a Scottish peak over
+      3,000 feet, and the genuinely hard part of Sir Hugh Munro's 1891 tables was
+      never the measuring. It was deciding which summits count as separate
+      mountains and which are just subsidiary tops of the same one. People have
+      argued about it ever since.</p>
+      <p>That is this tool in one sentence. <strong>Not every summit is a
+      separate mountain, and not every panel is a separate signal.</strong></p>
+
+      <h3>Author</h3>
+      <p>Built by <strong>Shaun Cooper</strong>, independent systems theorist.
+      The engine grew out of a research programme that spent most of its effort
+      trying to break its own measurements, and catalogued the distinct ways a
+      comparison like this can produce a publishable-looking wrong answer.</p>
+
+      <p class="faint">Runs entirely in your browser via Pyodide. No account, no
+      upload, no telemetry — which would be an awkward thing for this particular
+      tool to collect.</p>
+    </div>
+  </details>
+
+  <footer>
+    <div class="row">
+      <div>Redd Munro · <code>pip install redd-munro</code> · numpy only</div>
+      <div>Every check we run — and the one we have not built — is on this page</div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div>Ran it on a real dashboard? <a href="mailto:shaun@reddmunro.com?subject=Redd%20Munro%20—%20what%20it%20found">Tell me what it found</a> — including if it was useless.</div>
+      <div>No accounts, no tracking, no cookies.</div>
+    </div>
+  </footer>
+</div>
+
+<!-- Pyodide, from the CDN. NOTE FOR ANYONE EDITING configure_site.py:
+     this URL is NOT ours and must never be rewritten by the domain
+     substitution. It was, once — a permissive regex matched any
+     https://host/ and pointed this at reddmunro.com, which 404s, leaves
+     loadPyodide undefined and breaks the whole page with a message that
+     does not name the cause. There is a regression test for it. -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"
+        crossorigin="anonymous"
+        onerror="window.__pyodideCdnFailed = true"></script>
+<script>
+const drop = document.getElementById('drop');
+const msg  = document.getElementById('dropmsg');
+const out  = document.getElementById('out');
+const file = document.getElementById('file');
+const lensSel = document.getElementById('lens');
+const lensCard = document.getElementById('lenscard');
+const exampleBtn = document.getElementById('example');
+let py = null, ready = false;
+let lastPayload = null;   // re-render on lens change without re-running
+let isSample = false;     // true while showing the auto-run infra sample
+let lexicons = {};        // name -> parsed JSON
+
+const esc = s => String(s).replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// Lexicons are fetched by JS and never handed to Pyodide.
+async function loadLexicons() {
+  try {
+    const idx = await (await fetch('domains/index.json')).json();
+    for (const name of idx.domains) {
+      const lex = await (await fetch('domains/' + name + '.json')).json();
+      lexicons[name] = lex;
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = lex.title || name;
+      lensSel.appendChild(o);
+    }
+  } catch (e) {
+    // A missing lexicon must never break the auditor. The dropdown
+    // stays empty and the report renders mathematical states.
+    console.warn('no domain lexicons available:', e);
+  }
+}
+
+// Pyodide is a third-party script from a CDN. It can fail to arrive:
+// an ad blocker, a corporate proxy, an offline laptop, or — as happened
+// here once — a broken URL. `loadPyodide` is then simply undefined, and
+// calling it produces "loadPyodide is not defined", which tells the
+// visitor nothing about the cause. Check for it explicitly and say what
+// actually went wrong.
+function pyodideReady() {
+  return typeof window.loadPyodide === "function";
+}
+
+async function loadPyodideScript(src) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = src;
+    el.crossOrigin = "anonymous";
+    el.onload = () => resolve(src);
+    el.onerror = () => reject(new Error("could not load " + src));
+    document.head.appendChild(el);
+  });
+}
+
+// Tried in order. The first is the primary CDN; the second is an
+// independent mirror, so one network block does not take the page down.
+const PYODIDE_SOURCES = [
+  "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js",
+  "https://unpkg.com/pyodide@0.26.4/pyodide.js",
+];
+
+async function ensurePyodideScript() {
+  if (pyodideReady()) return "already loaded";
+  const tried = [];
+  for (const src of PYODIDE_SOURCES) {
+    try {
+      await loadPyodideScript(src);
+      if (pyodideReady()) return src;
+      tried.push(src + " (loaded but defined nothing)");
+    } catch (e) {
+      tried.push(src + " (blocked or unreachable)");
+    }
+  }
+  const err = new Error("Pyodide could not be loaded from any source");
+  err.tried = tried;
+  throw err;
+}
+
+async function boot() {
+  msg.innerHTML = '<strong>Loading engine…</strong><br><span class="sub">' +
+                  'Python + numpy, about 10MB, cached after the first run</span>';
+  drop.classList.add('busy');
+  loadLexicons();
+  try {
+    await ensurePyodideScript();
+    py = await loadPyodide();
+    await py.loadPackage('numpy');
+    // Fetched as source and written to Pyodide's virtual filesystem so
+    // it is a normal import — the engine is unmodified, exactly the
+    // module that ships on PyPI and runs in CI.
+    const src = await (await fetch('signal_audit.py')).text();
+    py.FS.writeFile('/home/pyodide/signal_audit.py', src);
+    py.runPython(`
+import sys
+sys.path.insert(0, '/home/pyodide')
+import json, signal_audit as SA
+`);
+    ready = true;
+    exampleBtn.disabled = false;
+    // Run a real dataset immediately. Exporting a dashboard to CSV is
+    // twenty minutes of work, and asking for it before showing any
+    // result is where a first-time visitor is lost. This is real
+    // telemetry from a public Prometheus instance, audited in the tab.
+    autoRun();
+    drop.classList.remove('busy');
+    msg.innerHTML = '<strong>Drop a CSV here</strong><br>' +
+      '<span class="sub">or click to choose · nothing leaves this machine</span>';
+  } catch (e) {
+    drop.classList.remove('busy');
+    const blocked = /Pyodide could not be loaded/.test(e.message)
+                 || !pyodideReady();
+    const detail = blocked
+      ? 'The analysis engine is a ~10MB WebAssembly bundle served from a '
+        + 'public CDN. It did not arrive. The usual causes are an ad '
+        + 'blocker, a corporate proxy, or no network. Nothing was sent '
+        + 'anywhere — there is no server to send it to.'
+        + (e.tried ? '<br><br>Tried:<br>' + e.tried.map(esc).join('<br>') : '')
+      : esc(e.message);
+    msg.innerHTML = '<strong class="err">Engine failed to load</strong><br>' +
+      '<span class="sub">' + detail + '</span>';
+  }
+}
+
+function audit(text, label) {
+  py.globals.set('csv_text', text);
+  py.globals.set('csv_label', label || 'local-file');
+  // The worksheet and the summary are built in the ENGINE, from the same
+  // payload the page renders — not assembled in JavaScript. A summary
+  // that disagreed with the screen would be worse than no summary, and
+  // this way the CLI, the API and this page emit identical bytes.
+  const raw = py.runPython(`
+try:
+    _r = SA.audit_text(csv_text, label=csv_label)
+    _p = SA.report_payload(_r)
+    _out = json.dumps({"ok": True, "payload": _p,
+                       "worksheet": SA.blast_radius_worksheet(_r),
+                       "markdown": SA.summary_markdown(_p)})
+except ValueError as exc:
+    _out = json.dumps({"ok": False, "error": str(exc)})
+_out
+`);
+  return JSON.parse(raw);
+}
+
+// Exports are built and downloaded in the tab. No upload, no round trip
+// — the same property the rest of the page claims, kept here too.
+let lastExports = null;
+
+function download(name, text, mime) {
+  const url = URL.createObjectURL(new Blob([text], {type: mime}));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Labels are written for humans — "sample_dashboard.csv (synthetic
+// example)" — so the extension is not necessarily last and a naive
+// trailing-extension strip leaves it embedded in the filename. Drop the
+// parenthetical aside first, then any known data extension wherever it
+// sits. Only known extensions, so a metric name like "p99.9" survives.
+function slug(s) {
+  return (s || 'export')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\.(csv|tsv|json|ndjson|txt|xlsx?|gz)\b/gi, '')
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^[-_.]+|[-_.]+$/g, '')
+    .slice(0, 48)
+    .replace(/[-_.]+$/, '') || 'export';
+}
+
+function doExport(kind) {
+  if (!lastExports) return;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const base = `redd-${slug(lastExports.label)}-${stamp}`;
+  if (kind === 'md') {
+    download(`${base}.md`, lastExports.markdown, 'text/markdown');
+  } else {
+    download(`${base}-worksheet.csv`, lastExports.worksheet, 'text/csv');
+  }
+}
+
+function renderLens(p, lex) {
+  if (!lex) return '';
+  const fired = new Set(p.failure_catalogue
+    .filter(c => c.available && c.fired).map(c => c.id));
+  const items = Object.entries(lex.checks || {}).filter(([k]) => fired.has(k));
+  const body = items.length ? items.map(([, v]) => `
+    <div class="lens-item">
+      <h3>${esc(v.label)}</h3>
+      <div class="lens-row"><span class="k">consistent with</span><span>${esc(v.consistent_with)}</span></div>
+      <div class="lens-row"><span class="k">but also</span><span>${esc(v.but_also)}</span></div>
+      <div class="lens-row tell"><span class="k">tell apart</span><span>${esc(v.distinguish_by)}</span></div>
+    </div>`).join('')
+    : '<div class="sub">No check in this lexicon fired on this file.</div>';
+  return `<div class="card">
+    <h2>${esc(lex.title || lex.domain)} — what these mean here</h2>
+    ${body}
+    <div class="faint" style="margin-top:16px">Two readings are given because the
+    engine cannot choose between them. A pair whose correlation rose after a
+    transform was either given a shared factor or shown to already have one.
+    Someone who knows what the metrics mean can tell; the arithmetic cannot.</div>
+  </div>`;
+}
+
+function render(p) {
+  const s = p.summary, a = p.assurance, b = p.basis;
+  const pct = s.noise_reduction_pct ?? 0;
+
+  const tag = b ? '<span class="basis-tag ' + (b.declared ? 'declared' : 'assumed') +
+    '">' + esc(b.headline) + ' · ' + (b.declared ? 'declared' : 'ASSUMED') +
+    '</span>' : '';
+
+  const catalogue = p.failure_catalogue.map(c => {
+    const cls  = !c.available ? 'na' : (c.fired ? 'fired' : 'clear');
+    const mark = !c.available ? '○' : (c.fired ? '▲' : '✓');
+    const detail = c.detail ? `<div class="d">${esc(c.detail)}</div>` : '';
+    const na = !c.available
+      ? '<div class="d">not implemented — shown so its absence is visible</div>' : '';
+    return `<div class="chk ${cls}"><span class="m">${mark}</span>
+      <span class="t">${esc(c.label)}${detail}${na}</span></div>`;
+  }).join('');
+
+  const fired = p.failure_catalogue.filter(c => c.available && c.fired).length;
+  const avail = p.failure_catalogue.filter(c => c.available).length;
+
+  const bases = (b && Object.keys(b.per_basis || {}).length > 2) ? `<div class="card">
+    <h2>Bases</h2>
+    <div class="sub" style="margin-bottom:10px">Every basis is computed on every
+      run. The headline is a choice, not a deduction.</div>
+    <table><tr><th>Basis</th><th class="num-c">Signals</th><th class="num-c">Metrics</th></tr>
+    ${Object.entries(b.per_basis).map(([k, v]) => `<tr>
+      <td class="name">${esc(k)}${k === b.headline ? ' &larr; headline' : ''}</td>
+      <td class="num-c">${v.effective_signals}</td>
+      <td class="num-c">${v.metrics}</td></tr>`).join('')}
+    </table></div>` : '';
+
+  const sums = (p.subset_sums && p.subset_sums.length) ? `<div class="card">
+    <h2>Subset sums</h2>
+    <table><tr><th>Metric</th><th>is exactly</th></tr>
+    ${p.subset_sums.map(x => `<tr><td class="name">${esc(x.metric)}</td>
+      <td>${x.children.map(esc).join(' + ')}</td></tr>`).join('')}
+    </table>
+    <div class="faint" style="margin-top:12px">Archive the parent, keep the parts.
+      Every member of an additive family is predictable from the others, so an
+      unguarded ranking would offer them all at once — the parts are
+      protected.</div></div>` : '';
+
+  const arch = (p.archive_candidates && p.archive_candidates.length) ? `<div class="card">
+    <h2>Safe archive candidates</h2>
+    <div class="sub">${p.archive_candidates.map(esc).join(' · ')}</div>
+    <div class="faint" style="margin-top:12px">Nothing is archived until a
+      blast-radius check clears each metric against live monitors, SLOs and
+      runbooks.</div></div>` : '';
+
+  const banner = isSample ? `<div class="samp">
+    <b>This is a live audit of a public Prometheus instance.</b>
+    <span>11 metrics of real infrastructure telemetry — not a mock-up, not a
+    screenshot. Drop your own export above to replace it.</span></div>` : '';
+
+  out.innerHTML = banner + `
+  <div class="card">
+    <h2>Result</h2>
+    <div class="headline"><span class="num">${s.metrics}</span> metrics collapse to
+      <span class="num">${s.effective_signals}</span> effective signals${tag}</div>
+    <div class="bar"><i style="width:${Math.max(0, Math.min(100, 100 - pct))}%"></i></div>
+    <div class="sub">${pct.toFixed(0)}% redundant</div>
+    <div class="kpis">
+      <div class="kpi"><b>${s.load_bearing_count}</b><span>Load bearing</span></div>
+      <div class="kpi"><b>${s.archive_candidate_count}</b><span>Archivable</span></div>
+      <div class="kpi"><b>${s.rows}</b><span>Rows</span></div>
+      <div class="kpi"><b><span class="grade ${a.grade}">${a.grade}</span></b><span>Evidence</span></div>
+    </div>
+    <div class="faint" style="margin-top:14px">${a.reasons.map(esc).join(' · ')}</div>
+  </div>
+
+  <div class="card">
+    <h2>Take this away</h2>
+    <div class="sub" style="margin-bottom:12px">Both files are written in this
+      tab. Nothing is uploaded to produce them.</div>
+    <div class="exports">
+      <button id="exp-md" type="button"><b>Summary (.md)</b>
+        <span>for a PR or ticket</span></button>
+      <button id="exp-csv" type="button"><b>Blast-radius worksheet (.csv)</b>
+        <span>${s.metrics} rows, evidence pre-filled</span></button>
+    </div>
+    <div class="faint">The summary states what was proved and what was not. It
+      is deliberately not a sign-off: the engine can show a metric carries no
+      variation the others lack, but not whether it is the sole condition on a
+      paging rule or an SLO. The worksheet has a column for each of those, and
+      completing it <em>is</em> the safety check — which is why the summary
+      says so on its face, where whoever reviews the change will read it.</div>
+  </div>
+
+  <div class="card">
+    <h2>Failure catalogue — ${avail} checks run · ${fired} fired</h2>
+    ${catalogue}
+  </div>
+
+  ${renderLens(p, lexicons[lensSel.value])}
+  ${bases}${sums}${arch}
+
+  ${(p.excluded_columns && p.excluded_columns.length) ? `<div class="card">
+    <h2>Not audited</h2><div class="sub">${p.excluded_columns.map(esc).join('<br>')}</div>
+    </div>` : ''}`;
+
+  // Bound after innerHTML, because innerHTML replaces the nodes.
+  const md = document.getElementById('exp-md');
+  const cv = document.getElementById('exp-csv');
+  if (md) md.addEventListener('click', () => doExport('md'));
+  if (cv) cv.addEventListener('click', () => doExport('csv'));
+  if (!lastExports) { if (md) md.disabled = true; if (cv) cv.disabled = true; }
+}
+
+function runText(text, label) {
+  drop.classList.add('busy');
+  msg.innerHTML = '<strong>Analysing…</strong>';
+  setTimeout(() => {
+    let res;
+    try { res = audit(text, label); }
+    catch (e) { res = {ok:false, error:e.message}; }
+    drop.classList.remove('busy');
+    msg.innerHTML = '<strong>Drop another CSV</strong><br>' +
+      `<span class="sub">${esc(label)}</span>`;
+    if (res.ok) {
+      lastPayload = res.payload;
+      lastExports = {label: label, markdown: res.markdown,
+                     worksheet: res.worksheet};
+      lensCard.style.display = '';
+      render(res.payload);
+      document.getElementById('out').scrollIntoView({behavior:'smooth', block:'start'});
+    } else {
+      lastPayload = null;
+      lastExports = null;
+      out.innerHTML = `<div class="card"><strong class="err">
+        Could not audit that file</strong><div class="sub">${esc(res.error)}</div>
+        </div>`;
+    }
+  }, 20);
+}
+
+// The example is fetched, not embedded: it is the same file build_demo.py
+// copies from source and drift-checks, so the page can never demo a
+// dataset that has drifted from the one the tests use.
+exampleBtn.addEventListener('click', async () => {
+  if (!ready) return;
+  try {
+    isSample = false;
+    const t = await (await fetch('sample_dashboard.csv')).text();
+    runText(t, 'sample_dashboard.csv (synthetic example)');
+  } catch (e) {
+    out.innerHTML = `<div class="card"><strong class="err">
+      Could not load the example</strong><div class="sub">${esc(e.message)}</div></div>`;
+  }
+});
+
+async function autoRun() {
+  try {
+    const t = await (await fetch('prometheus_infra.csv')).text();
+    isSample = true;
+    runText(t, 'prometheus_infra.csv (live sample)');
+  } catch (e) {
+    // Never let the sample break the page — the uploader still works.
+    console.warn('sample auto-run skipped:', e);
+  }
+}
+
+function handle(f) {
+  if (!ready) return;
+  isSample = false;
+  const reader = new FileReader();
+  reader.onload = () => {
+    runText(reader.result, f.name);
+  };
+  reader.readAsText(f);
+}
+
+// Lens change re-renders from the cached payload. Pyodide is untouched:
+// the lexicon is naming, not analysis, so the numbers cannot move.
+lensSel.addEventListener('change', () => { if (lastPayload) render(lastPayload); });
+
+drop.addEventListener('click', () => ready && file.click());
+file.addEventListener('change', e => e.target.files[0] && handle(e.target.files[0]));
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0]; if (f) handle(f); });
+
+boot();
+</script>
+</body></html>

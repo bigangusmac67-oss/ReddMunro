@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signal audit — act_air_quality.csv</title>
+<style>
+ :root { --ink:#1a1a1a; --sub:#666; --line:#e3e3e3; --bg:#fafafa; }
+ * { box-sizing:border-box; }
+ body { font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",
+        Roboto,Helvetica,Arial,sans-serif; color:var(--ink);
+        background:var(--bg); margin:0; padding:32px 20px; }
+ .wrap { max-width:980px; margin:0 auto; }
+ h1 { font-size:22px; margin:0 0 4px; }
+ h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em;
+       color:var(--sub); margin:34px 0 10px; font-weight:600; }
+ .file { color:var(--sub); font-size:13px; margin-bottom:24px;
+          font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+ .card { background:#fff; border:1px solid var(--line); border-radius:10px;
+          padding:20px 22px; }
+ .headline { font-size:30px; font-weight:650; color:#c62828;
+              line-height:1.15; }
+ .headline small { display:block; font-size:15px; font-weight:400;
+                    color:var(--ink); margin-top:10px; }
+ .stats { display:flex; gap:34px; margin-top:18px; padding-top:16px;
+           border-top:1px solid var(--line); flex-wrap:wrap; }
+ .stat b { display:block; font-size:21px; font-weight:600; }
+ .stat span { font-size:12px; color:var(--sub); }
+ table { border-collapse:collapse; width:100%; font-size:13px;
+          background:#fff; }
+ th,td { border:1px solid var(--line); padding:6px 9px; text-align:left; }
+ th { background:#f4f4f4; font-weight:600; }
+ td.num { text-align:right; font-variant-numeric:tabular-nums;
+           font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+ .heat { overflow-x:auto; }
+ .heat table { font-size:11px; }
+ .heat td { text-align:center; padding:5px 6px; min-width:52px;
+             font-variant-numeric:tabular-nums; }
+ .heat th.rowh { position:sticky; left:0; background:#f4f4f4;
+                  max-width:170px; }
+ .heat th.colh { font-size:10px; writing-mode:vertical-rl;
+                  transform:rotate(180deg); height:110px; padding:5px 3px; }
+ .bar { background:#eee; border-radius:3px; height:9px; width:110px; }
+ .bar i { display:block; background:#c62828; height:100%;
+           border-radius:3px; }
+ ul { margin:0; padding-left:20px; }
+ li { margin:5px 0; }
+ .none { color:var(--sub); font-style:italic; }
+ .warn { background:#fff8e1; border:1px solid #ffe082; border-radius:8px;
+          padding:13px 16px; margin-top:16px; font-size:14px; }
+ .sub { color:var(--sub); font-size:13px; }
+ .notes { color:var(--sub); font-size:13px; }
+ footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--line);
+           color:var(--sub); font-size:12px; }
+</style></head><body><div class="wrap">
+
+<h1>Signal audit</h1>
+<div class="file">/sessions/peaceful-happy-knuth/mnt/THE CONSTRAINT PROJECT/signal-audit/act_air_quality.csv</div>
+
+<div class="card">
+  <div class="headline">4.7 independent signals
+    <small>from 12 metrics over 1040 rows. Heavy redundancy. Most of this set restates a small number of underlying quantities.</small>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>12</b><span>metrics supplied</span></div>
+    <div class="stat"><b>4.7</b><span>independent signals</span></div>
+    <div class="stat"><b>6</b><span>components for 95% variance</span></div>
+    <div class="stat"><b>1</b><span>definitional identities</span></div>
+    <div class="stat"><b>4</b><span>redundancy clusters</span></div>
+  </div>
+  <div class='warn'><b>Shared trend is inflating the raw numbers.</b> Raw and differenced disagree by 2.1 signals. Metrics that all grow over time correlate strongly for that reason alone. Every headline figure on this page uses the differenced (period-over-period) view, which is the one about your metrics rather than the calendar.</div>
+</div>
+
+<h2>Correlation matrix (differenced)</h2>
+<div class="heat card"><table>
+<tr><th></th><th class="colh">no2</th><th class="colh">o3_1hr</th><th class="colh">o3_4hr</th><th class="colh">o3_8hr</th><th class="colh">co</th><th class="colh">pm10</th><th class="colh">pm2_5</th><th class="colh">aqi_no2</th><th class="colh">aqi_o3_1hr</th><th class="colh">aqi_pm10</th><th class="colh">aqi_pm2_5</th><th class="colh">aqi_site</th></tr>
+<tr><th class="rowh">no2</th><td style="background:rgba(198,40,40,0.900)" title="no2 ~ no2: r=+1.000">+1.00</td><td style="background:rgba(21,101,192,0.573)" title="no2 ~ o3_1hr: r=-0.611">-0.61</td><td style="background:rgba(21,101,192,0.362)" title="no2 ~ o3_4hr: r=-0.360">-0.36</td><td style="background:rgba(21,101,192,0.068)" title="no2 ~ o3_8hr: r=-0.010">-0.01</td><td style="background:rgba(21,101,192,0.119)" title="no2 ~ co: r=-0.071">-0.07</td><td style="background:rgba(21,101,192,0.068)" title="no2 ~ pm10: r=-0.010">-0.01</td><td style="background:rgba(198,40,40,0.079)" title="no2 ~ pm2_5: r=+0.023">+0.02</td><td style="background:rgba(198,40,40,0.857)" title="no2 ~ aqi_no2: r=+0.948">+0.95</td><td style="background:rgba(21,101,192,0.573)" title="no2 ~ aqi_o3_1hr: r=-0.611">-0.61</td><td style="background:rgba(21,101,192,0.068)" title="no2 ~ aqi_pm10: r=-0.010">-0.01</td><td style="background:rgba(198,40,40,0.080)" title="no2 ~ aqi_pm2_5: r=+0.024">+0.02</td><td style="background:rgba(21,101,192,0.218)" title="no2 ~ aqi_site: r=-0.188">-0.19</td></tr>
+<tr><th class="rowh">o3_1hr</th><td style="background:rgba(21,101,192,0.573)" title="o3_1hr ~ no2: r=-0.611">-0.61</td><td style="background:rgba(198,40,40,0.900)" title="o3_1hr ~ o3_1hr: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.585)" title="o3_1hr ~ o3_4hr: r=+0.625">+0.63</td><td style="background:rgba(198,40,40,0.276)" title="o3_1hr ~ o3_8hr: r=+0.258">+0.26</td><td style="background:rgba(21,101,192,0.293)" title="o3_1hr ~ co: r=-0.277">-0.28</td><td style="background:rgba(198,40,40,0.073)" title="o3_1hr ~ pm10: r=+0.015">+0.02</td><td style="background:rgba(21,101,192,0.100)" title="o3_1hr ~ pm2_5: r=-0.048">-0.05</td><td style="background:rgba(21,101,192,0.558)" title="o3_1hr ~ aqi_no2: r=-0.593">-0.59</td><td style="background:rgba(198,40,40,0.900)" title="o3_1hr ~ aqi_o3_1hr: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.076)" title="o3_1hr ~ aqi_pm10: r=+0.020">+0.02</td><td style="background:rgba(21,101,192,0.100)" title="o3_1hr ~ aqi_pm2_5: r=-0.048">-0.05</td><td style="background:rgba(198,40,40,0.210)" title="o3_1hr ~ aqi_site: r=+0.179">+0.18</td></tr>
+<tr><th class="rowh">o3_4hr</th><td style="background:rgba(21,101,192,0.362)" title="o3_4hr ~ no2: r=-0.360">-0.36</td><td style="background:rgba(198,40,40,0.585)" title="o3_4hr ~ o3_1hr: r=+0.625">+0.63</td><td style="background:rgba(198,40,40,0.900)" title="o3_4hr ~ o3_4hr: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.615)" title="o3_4hr ~ o3_8hr: r=+0.661">+0.66</td><td style="background:rgba(21,101,192,0.513)" title="o3_4hr ~ co: r=-0.539">-0.54</td><td style="background:rgba(21,101,192,0.105)" title="o3_4hr ~ pm10: r=-0.054">-0.05</td><td style="background:rgba(21,101,192,0.155)" title="o3_4hr ~ pm2_5: r=-0.113">-0.11</td><td style="background:rgba(21,101,192,0.350)" title="o3_4hr ~ aqi_no2: r=-0.345">-0.35</td><td style="background:rgba(198,40,40,0.585)" title="o3_4hr ~ aqi_o3_1hr: r=+0.625">+0.63</td><td style="background:rgba(21,101,192,0.106)" title="o3_4hr ~ aqi_pm10: r=-0.055">-0.05</td><td style="background:rgba(21,101,192,0.156)" title="o3_4hr ~ aqi_pm2_5: r=-0.115">-0.11</td><td style="background:rgba(198,40,40,0.161)" title="o3_4hr ~ aqi_site: r=+0.121">+0.12</td></tr>
+<tr><th class="rowh">o3_8hr</th><td style="background:rgba(21,101,192,0.068)" title="o3_8hr ~ no2: r=-0.010">-0.01</td><td style="background:rgba(198,40,40,0.276)" title="o3_8hr ~ o3_1hr: r=+0.258">+0.26</td><td style="background:rgba(198,40,40,0.615)" title="o3_8hr ~ o3_4hr: r=+0.661">+0.66</td><td style="background:rgba(198,40,40,0.900)" title="o3_8hr ~ o3_8hr: r=+1.000">+1.00</td><td style="background:rgba(21,101,192,0.677)" title="o3_8hr ~ co: r=-0.735">-0.73</td><td style="background:rgba(21,101,192,0.128)" title="o3_8hr ~ pm10: r=-0.081">-0.08</td><td style="background:rgba(21,101,192,0.238)" title="o3_8hr ~ pm2_5: r=-0.211">-0.21</td><td style="background:rgba(21,101,192,0.071)" title="o3_8hr ~ aqi_no2: r=-0.013">-0.01</td><td style="background:rgba(198,40,40,0.276)" title="o3_8hr ~ aqi_o3_1hr: r=+0.258">+0.26</td><td style="background:rgba(21,101,192,0.130)" title="o3_8hr ~ aqi_pm10: r=-0.083">-0.08</td><td style="background:rgba(21,101,192,0.239)" title="o3_8hr ~ aqi_pm2_5: r=-0.213">-0.21</td><td style="background:rgba(21,101,192,0.116)" title="o3_8hr ~ aqi_site: r=-0.067">-0.07</td></tr>
+<tr><th class="rowh">co</th><td style="background:rgba(21,101,192,0.119)" title="co ~ no2: r=-0.071">-0.07</td><td style="background:rgba(21,101,192,0.293)" title="co ~ o3_1hr: r=-0.277">-0.28</td><td style="background:rgba(21,101,192,0.513)" title="co ~ o3_4hr: r=-0.539">-0.54</td><td style="background:rgba(21,101,192,0.677)" title="co ~ o3_8hr: r=-0.735">-0.73</td><td style="background:rgba(198,40,40,0.900)" title="co ~ co: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.124)" title="co ~ pm10: r=+0.076">+0.08</td><td style="background:rgba(198,40,40,0.198)" title="co ~ pm2_5: r=+0.164">+0.16</td><td style="background:rgba(21,101,192,0.115)" title="co ~ aqi_no2: r=-0.066">-0.07</td><td style="background:rgba(21,101,192,0.293)" title="co ~ aqi_o3_1hr: r=-0.277">-0.28</td><td style="background:rgba(198,40,40,0.122)" title="co ~ aqi_pm10: r=+0.073">+0.07</td><td style="background:rgba(198,40,40,0.199)" title="co ~ aqi_pm2_5: r=+0.165">+0.17</td><td style="background:rgba(198,40,40,0.201)" title="co ~ aqi_site: r=+0.168">+0.17</td></tr>
+<tr><th class="rowh">pm10</th><td style="background:rgba(21,101,192,0.068)" title="pm10 ~ no2: r=-0.010">-0.01</td><td style="background:rgba(198,40,40,0.073)" title="pm10 ~ o3_1hr: r=+0.015">+0.02</td><td style="background:rgba(21,101,192,0.105)" title="pm10 ~ o3_4hr: r=-0.054">-0.05</td><td style="background:rgba(21,101,192,0.128)" title="pm10 ~ o3_8hr: r=-0.081">-0.08</td><td style="background:rgba(198,40,40,0.124)" title="pm10 ~ co: r=+0.076">+0.08</td><td style="background:rgba(198,40,40,0.900)" title="pm10 ~ pm10: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.247)" title="pm10 ~ pm2_5: r=+0.223">+0.22</td><td style="background:rgba(198,40,40,0.066)" title="pm10 ~ aqi_no2: r=+0.008">+0.01</td><td style="background:rgba(198,40,40,0.073)" title="pm10 ~ aqi_o3_1hr: r=+0.015">+0.02</td><td style="background:rgba(198,40,40,0.878)" title="pm10 ~ aqi_pm10: r=+0.974">+0.97</td><td style="background:rgba(198,40,40,0.246)" title="pm10 ~ aqi_pm2_5: r=+0.221">+0.22</td><td style="background:rgba(198,40,40,0.331)" title="pm10 ~ aqi_site: r=+0.323">+0.32</td></tr>
+<tr><th class="rowh">pm2_5</th><td style="background:rgba(198,40,40,0.079)" title="pm2_5 ~ no2: r=+0.023">+0.02</td><td style="background:rgba(21,101,192,0.100)" title="pm2_5 ~ o3_1hr: r=-0.048">-0.05</td><td style="background:rgba(21,101,192,0.155)" title="pm2_5 ~ o3_4hr: r=-0.113">-0.11</td><td style="background:rgba(21,101,192,0.238)" title="pm2_5 ~ o3_8hr: r=-0.211">-0.21</td><td style="background:rgba(198,40,40,0.198)" title="pm2_5 ~ co: r=+0.164">+0.16</td><td style="background:rgba(198,40,40,0.247)" title="pm2_5 ~ pm10: r=+0.223">+0.22</td><td style="background:rgba(198,40,40,0.900)" title="pm2_5 ~ pm2_5: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.089)" title="pm2_5 ~ aqi_no2: r=+0.034">+0.03</td><td style="background:rgba(21,101,192,0.100)" title="pm2_5 ~ aqi_o3_1hr: r=-0.048">-0.05</td><td style="background:rgba(198,40,40,0.252)" title="pm2_5 ~ aqi_pm10: r=+0.229">+0.23</td><td style="background:rgba(198,40,40,0.894)" title="pm2_5 ~ aqi_pm2_5: r=+0.993">+0.99</td><td style="background:rgba(198,40,40,0.512)" title="pm2_5 ~ aqi_site: r=+0.538">+0.54</td></tr>
+<tr><th class="rowh">aqi_no2</th><td style="background:rgba(198,40,40,0.857)" title="aqi_no2 ~ no2: r=+0.948">+0.95</td><td style="background:rgba(21,101,192,0.558)" title="aqi_no2 ~ o3_1hr: r=-0.593">-0.59</td><td style="background:rgba(21,101,192,0.350)" title="aqi_no2 ~ o3_4hr: r=-0.345">-0.35</td><td style="background:rgba(21,101,192,0.071)" title="aqi_no2 ~ o3_8hr: r=-0.013">-0.01</td><td style="background:rgba(21,101,192,0.115)" title="aqi_no2 ~ co: r=-0.066">-0.07</td><td style="background:rgba(198,40,40,0.066)" title="aqi_no2 ~ pm10: r=+0.008">+0.01</td><td style="background:rgba(198,40,40,0.089)" title="aqi_no2 ~ pm2_5: r=+0.034">+0.03</td><td style="background:rgba(198,40,40,0.900)" title="aqi_no2 ~ aqi_no2: r=+1.000">+1.00</td><td style="background:rgba(21,101,192,0.558)" title="aqi_no2 ~ aqi_o3_1hr: r=-0.593">-0.59</td><td style="background:rgba(198,40,40,0.065)" title="aqi_no2 ~ aqi_pm10: r=+0.006">+0.01</td><td style="background:rgba(198,40,40,0.089)" title="aqi_no2 ~ aqi_pm2_5: r=+0.035">+0.04</td><td style="background:rgba(21,101,192,0.217)" title="aqi_no2 ~ aqi_site: r=-0.187">-0.19</td></tr>
+<tr><th class="rowh">aqi_o3_1hr</th><td style="background:rgba(21,101,192,0.573)" title="aqi_o3_1hr ~ no2: r=-0.611">-0.61</td><td style="background:rgba(198,40,40,0.900)" title="aqi_o3_1hr ~ o3_1hr: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.585)" title="aqi_o3_1hr ~ o3_4hr: r=+0.625">+0.63</td><td style="background:rgba(198,40,40,0.276)" title="aqi_o3_1hr ~ o3_8hr: r=+0.258">+0.26</td><td style="background:rgba(21,101,192,0.293)" title="aqi_o3_1hr ~ co: r=-0.277">-0.28</td><td style="background:rgba(198,40,40,0.073)" title="aqi_o3_1hr ~ pm10: r=+0.015">+0.02</td><td style="background:rgba(21,101,192,0.100)" title="aqi_o3_1hr ~ pm2_5: r=-0.048">-0.05</td><td style="background:rgba(21,101,192,0.558)" title="aqi_o3_1hr ~ aqi_no2: r=-0.593">-0.59</td><td style="background:rgba(198,40,40,0.900)" title="aqi_o3_1hr ~ aqi_o3_1hr: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.076)" title="aqi_o3_1hr ~ aqi_pm10: r=+0.020">+0.02</td><td style="background:rgba(21,101,192,0.100)" title="aqi_o3_1hr ~ aqi_pm2_5: r=-0.048">-0.05</td><td style="background:rgba(198,40,40,0.210)" title="aqi_o3_1hr ~ aqi_site: r=+0.179">+0.18</td></tr>
+<tr><th class="rowh">aqi_pm10</th><td style="background:rgba(21,101,192,0.068)" title="aqi_pm10 ~ no2: r=-0.010">-0.01</td><td style="background:rgba(198,40,40,0.076)" title="aqi_pm10 ~ o3_1hr: r=+0.020">+0.02</td><td style="background:rgba(21,101,192,0.106)" title="aqi_pm10 ~ o3_4hr: r=-0.055">-0.05</td><td style="background:rgba(21,101,192,0.130)" title="aqi_pm10 ~ o3_8hr: r=-0.083">-0.08</td><td style="background:rgba(198,40,40,0.122)" title="aqi_pm10 ~ co: r=+0.073">+0.07</td><td style="background:rgba(198,40,40,0.878)" title="aqi_pm10 ~ pm10: r=+0.974">+0.97</td><td style="background:rgba(198,40,40,0.252)" title="aqi_pm10 ~ pm2_5: r=+0.229">+0.23</td><td style="background:rgba(198,40,40,0.065)" title="aqi_pm10 ~ aqi_no2: r=+0.006">+0.01</td><td style="background:rgba(198,40,40,0.076)" title="aqi_pm10 ~ aqi_o3_1hr: r=+0.020">+0.02</td><td style="background:rgba(198,40,40,0.900)" title="aqi_pm10 ~ aqi_pm10: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.251)" title="aqi_pm10 ~ aqi_pm2_5: r=+0.228">+0.23</td><td style="background:rgba(198,40,40,0.333)" title="aqi_pm10 ~ aqi_site: r=+0.325">+0.32</td></tr>
+<tr><th class="rowh">aqi_pm2_5</th><td style="background:rgba(198,40,40,0.080)" title="aqi_pm2_5 ~ no2: r=+0.024">+0.02</td><td style="background:rgba(21,101,192,0.100)" title="aqi_pm2_5 ~ o3_1hr: r=-0.048">-0.05</td><td style="background:rgba(21,101,192,0.156)" title="aqi_pm2_5 ~ o3_4hr: r=-0.115">-0.11</td><td style="background:rgba(21,101,192,0.239)" title="aqi_pm2_5 ~ o3_8hr: r=-0.213">-0.21</td><td style="background:rgba(198,40,40,0.199)" title="aqi_pm2_5 ~ co: r=+0.165">+0.17</td><td style="background:rgba(198,40,40,0.246)" title="aqi_pm2_5 ~ pm10: r=+0.221">+0.22</td><td style="background:rgba(198,40,40,0.894)" title="aqi_pm2_5 ~ pm2_5: r=+0.993">+0.99</td><td style="background:rgba(198,40,40,0.089)" title="aqi_pm2_5 ~ aqi_no2: r=+0.035">+0.04</td><td style="background:rgba(21,101,192,0.100)" title="aqi_pm2_5 ~ aqi_o3_1hr: r=-0.048">-0.05</td><td style="background:rgba(198,40,40,0.251)" title="aqi_pm2_5 ~ aqi_pm10: r=+0.228">+0.23</td><td style="background:rgba(198,40,40,0.900)" title="aqi_pm2_5 ~ aqi_pm2_5: r=+1.000">+1.00</td><td style="background:rgba(198,40,40,0.524)" title="aqi_pm2_5 ~ aqi_site: r=+0.553">+0.55</td></tr>
+<tr><th class="rowh">aqi_site</th><td style="background:rgba(21,101,192,0.218)" title="aqi_site ~ no2: r=-0.188">-0.19</td><td style="background:rgba(198,40,40,0.210)" title="aqi_site ~ o3_1hr: r=+0.179">+0.18</td><td style="background:rgba(198,40,40,0.161)" title="aqi_site ~ o3_4hr: r=+0.121">+0.12</td><td style="background:rgba(21,101,192,0.116)" title="aqi_site ~ o3_8hr: r=-0.067">-0.07</td><td style="background:rgba(198,40,40,0.201)" title="aqi_site ~ co: r=+0.168">+0.17</td><td style="background:rgba(198,40,40,0.331)" title="aqi_site ~ pm10: r=+0.323">+0.32</td><td style="background:rgba(198,40,40,0.512)" title="aqi_site ~ pm2_5: r=+0.538">+0.54</td><td style="background:rgba(21,101,192,0.217)" title="aqi_site ~ aqi_no2: r=-0.187">-0.19</td><td style="background:rgba(198,40,40,0.210)" title="aqi_site ~ aqi_o3_1hr: r=+0.179">+0.18</td><td style="background:rgba(198,40,40,0.333)" title="aqi_site ~ aqi_pm10: r=+0.325">+0.32</td><td style="background:rgba(198,40,40,0.524)" title="aqi_site ~ aqi_pm2_5: r=+0.553">+0.55</td><td style="background:rgba(198,40,40,0.900)" title="aqi_site ~ aqi_site: r=+1.000">+1.00</td></tr>
+</table></div>
+
+<h2>Definitional identities (|r| ≥ 0.999)</h2>
+<table><tr><th>Metric</th><th>Metric</th><th>r</th></tr><tr><td>o3_1hr</td><td>aqi_o3_1hr</td><td class='num'>+1.0000</td></tr></table>
+<p class="sub">Pairs this tightly coupled are typically the same quantity
+recorded twice — a rate and its inverse, a count and its percentage, a
+total and its complement. Each pair costs a dashboard slot and returns
+nothing.</p>
+
+<h2>Redundancy clusters (|r| ≥ 0.9)</h2>
+<div class="card"><ul><li><b>2 metrics:</b> no2, aqi_no2</li><li><b>2 metrics:</b> o3_1hr, aqi_o3_1hr</li><li><b>2 metrics:</b> pm10, aqi_pm10</li><li><b>2 metrics:</b> pm2_5, aqi_pm2_5</li></ul></div>
+<p class="sub">Linked by single-linkage: if A tracks B and B tracks C, all
+three sit in one cluster even when A and C are not directly correlated.
+One well-chosen representative per cluster carries most of what the
+cluster carries.</p>
+
+<h2>What each metric contributes</h2>
+<table><tr><th>Metric</th><th>Unique variance</th><th></th>
+<th>Best predicted by</th><th>r</th></tr><tr><td>aqi_site</td><td class='num'>56%</td><td><div class='bar'><i style='width:56%'></i></div></td><td>aqi_pm2_5</td><td class='num'>0.55</td></tr><tr><td>co</td><td class='num'>40%</td><td><div class='bar'><i style='width:40%'></i></div></td><td>o3_8hr</td><td class='num'>0.73</td></tr><tr><td>o3_4hr</td><td class='num'>33%</td><td><div class='bar'><i style='width:33%'></i></div></td><td>o3_8hr</td><td class='num'>0.66</td></tr><tr><td>o3_8hr</td><td class='num'>33%</td><td><div class='bar'><i style='width:33%'></i></div></td><td>co</td><td class='num'>0.73</td></tr><tr><td>aqi_no2</td><td class='num'>10%</td><td><div class='bar'><i style='width:10%'></i></div></td><td>no2</td><td class='num'>0.95</td></tr><tr><td>no2</td><td class='num'>10%</td><td><div class='bar'><i style='width:10%'></i></div></td><td>aqi_no2</td><td class='num'>0.95</td></tr><tr><td>pm10</td><td class='num'>5%</td><td><div class='bar'><i style='width:5%'></i></div></td><td>aqi_pm10</td><td class='num'>0.97</td></tr><tr><td>aqi_pm10</td><td class='num'>5%</td><td><div class='bar'><i style='width:5%'></i></div></td><td>pm10</td><td class='num'>0.97</td></tr><tr><td>pm2_5</td><td class='num'>1%</td><td><div class='bar'><i style='width:1%'></i></div></td><td>aqi_pm2_5</td><td class='num'>0.99</td></tr><tr><td>aqi_pm2_5</td><td class='num'>1%</td><td><div class='bar'><i style='width:1%'></i></div></td><td>pm2_5</td><td class='num'>0.99</td></tr><tr><td>o3_1hr</td><td class='num'>0%</td><td><div class='bar'><i style='width:1%'></i></div></td><td>aqi_o3_1hr</td><td class='num'>1.00</td></tr><tr><td>aqi_o3_1hr</td><td class='num'>0%</td><td><div class='bar'><i style='width:1%'></i></div></td><td>o3_1hr</td><td class='num'>1.00</td></tr></table>
+
+<p class="sub">Unique variance is what remains unexplained when every
+other metric in the set is used to predict this one — the honest measure
+of what deleting it would cost. Low values are candidates for removal;
+high values are load-bearing.</p>
+
+<h2>Derived aggregates</h2>
+<div class="card"><table><tr><th>Metric</th><th>Equals</th><th>Match</th></tr><tr><td>aqi_site</td><td>rowwise max of the other columns</td><td class='num'>76% of rows</td></tr></table><p class='sub'>These are determined by columns already present, but a max or min is linearly unpredictable — so the unique-variance table above overstates how load-bearing they are.</p></div>
+
+<h2>Nonlinear dependence</h2>
+<div class="card"><table><tr><th>Pair</th><th>r</th><th>MI vs gaussian</th></tr><tr><td>co ~ aqi_no2</td><td class='num'>+0.02</td><td class='num'>211.4×</td></tr><tr><td>no2 ~ co</td><td class='num'>+0.03</td><td class='num'>176.9×</td></tr><tr><td>no2 ~ o3_8hr</td><td class='num'>-0.22</td><td class='num'>10.7×</td></tr><tr><td>o3_8hr ~ aqi_no2</td><td class='num'>-0.21</td><td class='num'>10.1×</td></tr><tr><td>o3_1hr ~ aqi_site</td><td class='num'>-0.20</td><td class='num'>10.1×</td></tr><tr><td>aqi_o3_1hr ~ aqi_site</td><td class='num'>-0.20</td><td class='num'>10.1×</td></tr></table><p class='sub'>These pairs are related but would look independent on the correlation matrix above.</p></div>
+
+<h2>Columns not audited</h2><div class="card"><ul class='notes'><li>&#x27;datetime&#x27; — ignored by request</li><li>54 row(s) dropped for missing values (5% of the file)</li></ul></div>
+
+<footer>
+Generated by signal_audit.py v0.1.0. Headline figures use
+first-differenced series to remove shared trend. Independent-signal count
+is the participation ratio of the correlation spectrum — a continuous
+measure, so it will rarely be a whole number. This tool describes the
+statistical structure of the columns you supplied; it does not know what
+any metric means, and a redundant metric may still be worth keeping for
+reasons it cannot see.
+</footer>
+</div></body></html>
