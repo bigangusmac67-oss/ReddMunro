@@ -26,6 +26,24 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEMO = os.path.join(HERE, "demo")
+DATA = os.path.join(HERE, "data")
+
+
+def source_path(name):
+    """Locate a source asset.
+
+    Corpora live in `data/`; code lives at the repo root. Both are
+    checked so the build does not depend on which of the two a given
+    asset happens to be, and so the move of the corpora into `data/`
+    could not silently break the page.
+    """
+    for base in (HERE, DATA):
+        p = os.path.join(base, name)
+        if os.path.exists(p):
+            return p
+    return os.path.join(DATA, name)      # report the intended path
+
+
 ASSETS = [("signal_audit.py", "the engine, unmodified"),
           ("demo_dashboard.csv", "sample file for the 'try an example' link"),
           # Real telemetry from a public Prometheus instance. The page runs
@@ -119,7 +137,7 @@ def check_domains():
 def check_only():
     stale = []
     for src_name, _ in ASSETS:
-        src = os.path.join(HERE, src_name)
+        src = source_path(src_name)
         dst = os.path.join(DEMO, RENAME.get(src_name, src_name))
         if not os.path.exists(dst):
             stale.append(f"{dst} missing")
@@ -156,7 +174,7 @@ def main():
     _clean_pycache()
     print()
     for src_name, why in ASSETS:
-        src = os.path.join(HERE, src_name)
+        src = source_path(src_name)
         if not os.path.exists(src):
             print(f"  [skip] {src_name} not found — {why}")
             continue

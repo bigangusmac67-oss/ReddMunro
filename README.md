@@ -1,5 +1,10 @@
 # Redd Munro
 
+### → Run it on your own dashboard export, in your browser: **[reddmunro.com](https://reddmunro.com)**
+
+No install, no account, no upload — the engine runs in your tab via WebAssembly.
+Open the network panel and check.
+
 **Your dashboards don't have an observability problem — they have a trust problem.**
 
 Validates telemetry before dashboards, alerting engines and automated agents consume it: how many independent signals a metric set actually carries, which columns are the same number twice, and which are safe to archive.
@@ -14,8 +19,15 @@ Point it at a CSV whose columns are metrics and whose rows are observations over
 - **Per-metric contribution** — what each column would actually cost you if you deleted it
 - **Nonlinear dependence** — pairs that are strongly related but nearly uncorrelated, which a correlation matrix reports as independent
 
+> **Not on PyPI yet.** `pip install redd-munro` does not work today — the
+> name is unclaimed and the package is unpublished. Until it is, clone this
+> repo and run `python signal_audit_cli.py` in place of `redd`. Saying so
+> here rather than leaving a command that 404s, because a project arguing
+> for pre-registered honesty should not open with a broken promise.
+
 ```
-pip install redd-munro                       # numpy is the only dependency
+git clone https://github.com/bigangusmac67-oss/ReddMunro
+cd ReddMunro                           # numpy is the only dependency
 
 redd run metrics.csv                   # formatted report
 redd run metrics.csv --html report.html --json out.json
@@ -137,23 +149,25 @@ Stated plainly, because a tool that reports structure should be honest about its
 | File | Purpose |
 |---|---|
 | `signal_audit.py` | The tool. Single file, numpy only. |
-| `test_signal_audit.py` | 28 validation checks against planted ground truth. |
-| `make_demo.py` | Generates the demo dashboard with known structure. |
-| `demo_dashboard.csv` | 17 metrics, 400 days, 4 latent drivers. |
-| `demo_report.html` | Example output (synthetic). |
-| `nyc_covid_dashboard.csv` | Real dashboard: 53 metrics, 455 days, NYC Open Data. |
-| `nyc_report.html` | Example output (real). |
-| `act_air_quality.csv` | Real dashboard: 12 metrics, 1,094 hours, ACT Open Data. |
-| `act_report.html` | Example output (real, predictions pre-registered). |
-| `mta_subway_otp.csv` | Real dashboard: 23 subway lines, 49 months, NY Open Data. |
-| `mta_report.html` | Example output (real). |
-| `triadic_validation.py` | Three-way structure test — the basis for deferring that extension. |
-| `REAL_DASHBOARDS.md` | Predictions, scoring, and what each run changed in the tool. |
 | `signal_audit_cli.py` | The `redd` command. Presentation only, no analysis. |
-| `pyproject.toml` | Packaging. numpy-only runtime by design. |
+| `test_signal_audit.py` | 155 validation checks against planted ground truth. |
+| `make_demo.py` | Generates the demo dashboard with known structure. |
 | `check_pyodide.py` | Browser-compatibility preconditions (12 checks). |
+| `pyproject.toml` | Packaging. numpy-only runtime by design. |
+| **Evidence** | |
+| `REAL_DASHBOARDS.md` | Predictions, scoring, and what each run changed in the tool. |
+| `SCALE_BASIS_PREREG.md` | Cross-sectional scale confound — 9 predictions, 9 hits. |
+| `MI_SCALING_PREREG.md` | The MI performance repair — 7 hits, 1 failure, change abandoned. |
+| `AI_EVAL_PREREG.md` | AI leaderboards — 5 hits, 2 failures, both instructive. |
+| `data/` | Every corpus the documents above were scored against. |
+| `reports/` | The generated audits those documents refer to. |
+| **Surfaces** | |
+| `demo/` | Zero-server browser demo (Pyodide) — this is [reddmunro.com](https://reddmunro.com). |
 | `backend/` | Hosted service: contract, metering, jobs, exports, OpenAPI. |
-| `demo/` | Zero-server browser demo (Pyodide). See `demo/README.md`. |
+| `ci/` | Runs the engine under real wasm32, because the browser is the product. |
+
+The corpora in `data/` are committed deliberately. Every scored prediction is
+only checkable if the data it was scored against is here.
 
 ## Running in a browser
 

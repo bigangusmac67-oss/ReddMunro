@@ -391,9 +391,15 @@ def main():
 
     # 10. four-screen contract -------------------------------------------
     print("\n10. Front-end contract (4 screens)")
-    nyc = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "nyc_covid_dashboard.csv")
-    real = SVC.run_audit(nyc, tier="pro") if os.path.exists(nyc) else base
+    # Corpora live in data/; the repo root is checked too so this keeps
+    # working either side of that move rather than silently falling back
+    # to the synthetic fixture and testing less than it claims.
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    nyc = next((p for p in (
+        os.path.join(_root, "data", "nyc_covid_dashboard.csv"),
+        os.path.join(_root, "nyc_covid_dashboard.csv"))
+        if os.path.exists(p)), None)
+    real = SVC.run_audit(nyc, tier="pro") if nyc else base
 
     s = real["summary"]
     check("screen 1 — executive summary fields present",

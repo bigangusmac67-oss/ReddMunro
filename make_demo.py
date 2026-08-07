@@ -25,11 +25,21 @@ Expected verdict: ~18 columns, roughly 4-6 independent signals.
 """
 
 import csv
+import os
 
 import numpy as np
 
 
-def main(path="demo_dashboard.csv", n=400, seed=11):
+def _default_out():
+    """Write into data/ when it exists, so regenerating the fixture does
+    not scatter a corpus back into the repo root."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    d = os.path.join(here, "data")
+    return os.path.join(d if os.path.isdir(d) else here, "demo_dashboard.csv")
+
+
+def main(path=None, n=400, seed=11):
+    path = path or _default_out()
     rng = np.random.default_rng(seed)
     t = np.arange(n)
 

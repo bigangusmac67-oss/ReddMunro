@@ -38,16 +38,17 @@ cd demo && python3 -m http.server 8000     # then open http://localhost:8000
 
 **☑ Distribution name confirmed** — `redd` was taken, `redd-munro` is free. The command stays `redd`: `[project.scripts]` is a separate namespace, so `pip install redd-munro` installs a `redd` executable.
 
-☐ **Reserve `reddmunro` defensively** (no hyphen) so the obvious typo does not become someone else's package. Names are free and first-come.
+**Not doing: defensive name reservation.** An earlier draft of this file
+described uploading placeholder packages to hold `reddmunro` and
+`signal-audit` against typos. PyPI's policy treats packages uploaded
+solely to reserve a name as squatting, and it is a strange thing to
+publish in a repository whose argument is that we do the honest version
+even when it costs something. If a typo becomes a real problem, the fix
+is a genuine alias package that installs the real one, not an empty
+shell.
 
 ```bash
 twine upload dist/*                      # redd-munro
-
-# then, for the defensive reservation, in a scratch copy:
-#   set name = "signal-audit" in pyproject.toml
-#   python -m build && twine upload dist/*
-# Keep the primary pyproject.toml untouched — the scratch copy exists
-# only to hold the name.
 ```
 
 ```bash
