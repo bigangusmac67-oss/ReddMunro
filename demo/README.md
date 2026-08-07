@@ -29,9 +29,13 @@ changes, or the demo silently runs an old version:
 cp ../signal_audit.py .
 ```
 
-A build step should do this. The page fetches the source and writes it to
-Pyodide's virtual filesystem, so it imports as a normal module — the demo runs
-exactly the code that ships on PyPI and passes CI, not a browser-specific fork.
+`build_demo.py` does this, and verifies afterwards that the copy produces
+byte-identical results to the source engine. The page fetches the source and
+writes it to Pyodide's virtual filesystem, so it imports as a normal module —
+the demo runs exactly the code that passes CI, not a browser-specific fork.
+
+Note that **this file is itself served**, at `/README.md`, along with
+everything else in this directory. Nothing here is private, by design.
 
 ## What is verified, and what is not
 
