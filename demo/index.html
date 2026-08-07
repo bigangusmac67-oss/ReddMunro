@@ -668,6 +668,12 @@ import json, signal_audit as SA
   }
 }
 
+// null = undeclared, and the engine infers from a time-like column in
+// the header and labels the result ASSUMED. true/false are declarations.
+// The browser has no flags, so this is the only route a visitor has to
+// the same statement --ordered makes on the CLI.
+let orderedDeclaration = null;
+
 function audit(text, label) {
   py.globals.set('csv_text', text);
   py.globals.set('csv_label', label || 'local-file');
@@ -675,9 +681,10 @@ function audit(text, label) {
   // payload the page renders — not assembled in JavaScript. A summary
   // that disagreed with the screen would be worse than no summary, and
   // this way the CLI, the API and this page emit identical bytes.
+  py.globals.set('csv_ordered', orderedDeclaration);
   const raw = py.runPython(`
 try:
-    _r = SA.audit_text(csv_text, label=csv_label)
+    _r = SA.audit_text(csv_text, label=csv_label, ordered=csv_ordered)
     _p = SA.report_payload(_r)
     _out = json.dumps({"ok": True, "payload": _p,
                        "worksheet": SA.blast_radius_worksheet(_r),
@@ -759,15 +766,42 @@ function render(p) {
     '">' + esc(b.headline) + ' · ' + (b.declared ? 'declared' : 'ASSUMED') +
     '</span>' : '';
 
+  // Three states, not two. A check that could not run on this data is
+  // not a check that passed, and rendering it green would be the exact
+  // false reassurance the failure catalogue exists to prevent.
   const catalogue = p.failure_catalogue.map(c => {
-    const cls  = !c.available ? 'na' : (c.fired ? 'fired' : 'clear');
-    const mark = !c.available ? '○' : (c.fired ? '▲' : '✓');
+    const gated = c.available && c.skipped;
+    const cls  = !c.available ? 'na' : gated ? 'na' : (c.fired ? 'fired' : 'clear');
+    const mark = !c.available ? '○' : gated ? '–' : (c.fired ? '▲' : '✓');
     const detail = c.detail ? `<div class="d">${esc(c.detail)}</div>` : '';
     const na = !c.available
-      ? '<div class="d">not implemented — shown so its absence is visible</div>' : '';
+      ? '<div class="d">not implemented — shown so its absence is visible</div>'
+      : gated ? `<div class="d">not applicable — ${esc(c.skipped)}</div>` : '';
     return `<div class="chk ${cls}"><span class="m">${mark}</span>
       <span class="t">${esc(c.label)}${detail}${na}</span></div>`;
   }).join('');
+
+  const ord = p.order || {};
+  const orderCard = `<div class="card">
+    <h2>Are these rows a timeline?</h2>
+    <div class="sub" style="margin-bottom:10px">Two checks — the calendar
+      trend confound and the mid-file relationship change — mean nothing
+      unless each row follows the one above it in time. On a file whose
+      rows are hosts, services or accounts, they would invent a before and
+      an after. ${ord.declared
+        ? 'You have declared this.'
+        : 'Currently <b>assumed</b>: ' + esc(ord.evidence || '') + '.'}</div>
+    <div class="exports">
+      <button id="ord-yes" type="button" ${ord.ordered ? 'disabled' : ''}>
+        <b>Rows are in time order</b><span>run the time checks</span></button>
+      <button id="ord-no" type="button" ${ord.ordered ? '' : 'disabled'}>
+        <b>Rows are entities</b><span>hosts, services, accounts</span></button>
+    </div>
+    <div class="faint">Re-runs the audit. The engine never guesses this from
+      the numbers — it reads the header for a time-like column and says so,
+      because a wrong guess here produces a confident finding about a
+      calendar that does not exist.</div>
+  </div>`;
 
   const fired = p.failure_catalogue.filter(c => c.available && c.fired).length;
   const avail = p.failure_catalogue.filter(c => c.available).length;
@@ -845,6 +879,7 @@ function render(p) {
     ${catalogue}
   </div>
 
+  ${orderCard}
   ${renderLens(p, lexicons[lensSel.value])}
   ${bases}${sums}${arch}
 
@@ -853,6 +888,11 @@ function render(p) {
     </div>` : ''}`;
 
   // Bound after innerHTML, because innerHTML replaces the nodes.
+  const oy = document.getElementById('ord-yes');
+  const on = document.getElementById('ord-no');
+  if (oy) oy.addEventListener('click', () => redeclare(true));
+  if (on) on.addEventListener('click', () => redeclare(false));
+
   const md = document.getElementById('exp-md');
   const cv = document.getElementById('exp-csv');
   if (md) md.addEventListener('click', () => doExport('md'));
@@ -860,7 +900,19 @@ function render(p) {
   if (!lastExports) { if (md) md.disabled = true; if (cv) cv.disabled = true; }
 }
 
+// The last file, kept so a declaration can re-run it. Text only, in
+// this tab, same as everything else here — there is nowhere else it
+// could be kept, which is rather the point of the product.
+let lastText = null, lastLabel = null;
+
+function redeclare(isOrdered) {
+  if (lastText === null) return;
+  orderedDeclaration = isOrdered;
+  runText(lastText, lastLabel);
+}
+
 function runText(text, label) {
+  lastText = text; lastLabel = label;
   drop.classList.add('busy');
   msg.innerHTML = '<strong>Analysing…</strong>';
   setTimeout(() => {

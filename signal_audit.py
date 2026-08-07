@@ -690,6 +690,166 @@ def _mi_bias_floor(D, d, reps=6, seed=0):
     return float(np.mean(vals)) if vals else 0.0
 
 
+# ---------------------------------------------------------------------
+# Correlation drift. Registered in DRIFT_PREREG.md before this was written.
+# ---------------------------------------------------------------------
+DRIFT_MIN_ROWS = 30     # per window; below this the check refuses
+DRIFT_Q = 0.05          # Benjamini-Hochberg false discovery rate
+DRIFT_MAX_INFLATION = 3.0   # observed/theoretical spread past which the
+                            # file is too non-stationary to trust
+
+
+def _bh(p, q):
+    """Benjamini-Hochberg step-up. Returns (rejected mask, q-values).
+
+    Bonferroni over 1,770 pairs would suppress real findings along with
+    the false ones; FDR controls the proportion of reported pairs that
+    are wrong, which is the quantity an operator actually cares about
+    when handed a list.
+
+    The q-values are returned rather than a Bonferroni p*m, because the
+    first version reported the latter beside a BH rejection — so a
+    flagged pair displayed an adjusted p of 0.053 next to a threshold
+    of 0.05 and looked like a bug in the rejection rule. Reporting one
+    correction while deciding by another is its own small dishonesty.
+    """
+    p = np.asarray(p, dtype=float)
+    m = p.size
+    if m == 0:
+        return np.zeros(0, dtype=bool), np.zeros(0)
+    order = np.argsort(p)
+    ranked = p[order]
+    scaled = ranked * m / np.arange(1, m + 1)
+    # monotone from the top: q_(i) = min over k >= i
+    qvals_sorted = np.minimum.accumulate(scaled[::-1])[::-1]
+    qvals = np.empty(m)
+    qvals[order] = np.clip(qvals_sorted, 0.0, 1.0)
+    rejected = np.zeros(m, dtype=bool)
+    passed = ranked <= q * (np.arange(1, m + 1) / m)
+    if passed.any():
+        rejected[order[:int(np.max(np.where(passed)[0])) + 1]] = True
+    return rejected, qvals
+
+
+def _corr_of(M):
+    C = np.corrcoef(M, rowvar=False)
+    return np.atleast_2d(np.nan_to_num(C, nan=0.0))
+
+
+def correlation_drift(names, M, ordered=False, q=DRIFT_Q,
+                      min_rows=DRIFT_MIN_ROWS, naive=False):
+    """Pairs whose correlation changed between the first and second half.
+
+    Registered in DRIFT_PREREG.md, negative controls first. Returns a
+    dict with `status` and `pairs`; `pairs` is empty unless status is
+    "ok".
+
+    THE THREE THINGS THIS HAS TO GET RIGHT, and why each is here:
+
+    1. ORDER. Splitting rows into halves asserts a before and an after.
+       On entity-indexed data — one row per bank, per model, per host —
+       there is no such thing, and "the first half of the banks" is not
+       a period. The check refuses unless the caller declares the rows
+       ordered. The trend check does not consult this and fired on 541
+       language models; see AI_EVAL_PREREG.md finding 1.
+
+    2. SAMPLE SIZE. Correlation on n/2 rows is noisier than on n, so an
+       absolute threshold on |dr| is wrong at every size but the one it
+       was tuned at. Fisher z (arctanh r) is approximately normal with
+       SE 1/sqrt(n-3), so the difference of two windows has a known SE
+       and the statistic is scale-free by construction.
+
+    3. THE SHARED INCIDENT. During an outage every metric moves at once
+       and EVERY pair's correlation rises together. A naive difference
+       reports hundreds of new couplings for one event. So the
+       statistic is centred on the MEDIAN shift across all pairs: a
+       genuine drift in a few pairs barely moves the median, while an
+       incident that moves everything moves it a lot and is subtracted
+       out. `naive=True` disables this and exists only so the
+       registered comparison in D4 can be measured rather than asserted.
+    """
+    n_all, d = M.shape
+    if not ordered:
+        return {"status": "not_applicable",
+                "reason": "rows are not declared to be in time order; "
+                          "a before and an after would be invented",
+                "pairs": []}
+    if d < 2:
+        return {"status": "not_applicable",
+                "reason": "fewer than two metrics", "pairs": []}
+
+    cut = n_all // 2
+    A, B = M[:cut], M[cut:]
+    n1, n2 = A.shape[0], B.shape[0]
+    if min(n1, n2) < min_rows:
+        return {"status": "insufficient_rows",
+                "reason": f"{min(n1, n2)} rows per window; {min_rows} needed "
+                          f"before a change can be told from sampling noise",
+                "pairs": []}
+
+    # Constant columns within a window make correlation undefined; they
+    # are excluded rather than silently returned as 0, because "no
+    # relationship" and "no variation to have a relationship with" are
+    # different statements.
+    live = [j for j in range(d)
+            if np.std(A[:, j]) > 0 and np.std(B[:, j]) > 0]
+    if len(live) < 2:
+        return {"status": "not_applicable",
+                "reason": "fewer than two metrics vary in both windows",
+                "pairs": []}
+    dropped = [names[j] for j in range(d) if j not in live]
+
+    CA, CB = _corr_of(A[:, live]), _corr_of(B[:, live])
+    iu = np.triu_indices(len(live), k=1)
+    rA, rB = CA[iu], CB[iu]
+
+    clip = 1.0 - 1e-9
+    dz = np.arctanh(np.clip(rB, -clip, clip)) - np.arctanh(np.clip(rA, -clip, clip))
+    se = float(np.sqrt(1.0 / max(n1 - 3, 1) + 1.0 / max(n2 - 3, 1)))
+
+    centre = 0.0 if naive else float(np.median(dz))
+    resid = dz - centre
+
+    # Robust spread, for two purposes: as a floor on the denominator so
+    # the test is conservative when the data is messier than the normal
+    # theory assumes, and as a report on HOW much messier.
+    mad = float(np.median(np.abs(resid - np.median(resid)))) * 1.4826
+    scale = se if naive else max(se, mad)
+    inflation = (mad / se) if se > 0 else 0.0
+
+    stat = resid / scale
+    # two-sided normal tail without scipy: numpy only, by design
+    p = np.array([math.erfc(abs(s) / math.sqrt(2.0)) for s in stat])
+    rej, qvals = _bh(p, q)
+
+    pairs = []
+    for k in np.where(rej)[0]:
+        i, j = iu[0][k], iu[1][k]
+        pairs.append({
+            "metric_a": names[live[i]], "metric_b": names[live[j]],
+            "r_first": float(rA[k]), "r_second": float(rB[k]),
+            "delta_r": float(rB[k] - rA[k]),
+            "z": float(stat[k]), "q_value": float(qvals[k]),
+            "direction": "coupled" if abs(rB[k]) > abs(rA[k]) else "decoupled",
+        })
+    pairs.sort(key=lambda x: -abs(x["z"]))
+
+    return {
+        "status": "ok",
+        "pairs": pairs,
+        "rows_per_window": [n1, n2],
+        "pairs_tested": int(len(p)),
+        "shared_shift": float(centre),
+        "se_theoretical": se,
+        "spread_inflation": float(inflation),
+        "excluded": dropped,
+        # A file whose pair-to-pair spread far exceeds the normal theory
+        # is not stationary enough for this test to mean what it says.
+        # Reported rather than silently absorbed into the threshold.
+        "unstable": bool(inflation > DRIFT_MAX_INFLATION),
+    }
+
+
 def nonlinear_pairs(M, names, top=6):
     """Pairs whose empirical mutual information greatly exceeds what
     their linear correlation would imply — dependence a correlation
@@ -734,22 +894,27 @@ def nonlinear_pairs(M, names, top=6):
 # the audit
 # ----------------------------------------------------------------------
 def audit(path, ignore=(), max_rows=None, scale_by=(),
-          scale_exempt=(), basis=None):
+          scale_exempt=(), basis=None, ordered=None):
     """Audit a CSV file."""
-    names, M, notes = load_csv(path, ignore=ignore, max_rows=max_rows)
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        text = f.read()
+    names, M, notes = load_csv_text(text, ignore=ignore, max_rows=max_rows,
+                                    label=path)
     return _audit_core(names, M, notes, os.path.abspath(path),
                        os.path.basename(path), scale_by=scale_by,
-                       scale_exempt=scale_exempt, basis=basis)
+                       scale_exempt=scale_exempt, basis=basis,
+                       ordered=ordered, evidence=header_is_ordered(text))
 
 
 def audit_text(text, ignore=(), max_rows=None, label="<input>",
-               scale_by=(), scale_exempt=(), basis=None):
+               scale_by=(), scale_exempt=(), basis=None, ordered=None):
     """Audit CSV text. No filesystem required — for Pyodide, serverless
     handlers, and anywhere the data arrives as a string."""
     names, M, notes = load_csv_text(text, ignore=ignore, max_rows=max_rows,
                                     label=label)
     return _audit_core(names, M, notes, label, label, scale_by=scale_by,
-                       scale_exempt=scale_exempt, basis=basis)
+                       scale_exempt=scale_exempt, basis=basis,
+                       ordered=ordered, evidence=header_is_ordered(text))
 
 
 def build_view(names, X):
@@ -973,8 +1138,50 @@ def basis_conflicts(res, reference="raw", jump=0.25, floor=REDUNDANT_R):
     return out
 
 
+def header_is_ordered(text):
+    """Does this file's header carry a time index?
+
+    The only evidence of row order available without asking. Every
+    time-series corpus in this project has one — `timestamp`, `date`,
+    `datetime`, `month` — and both entity-indexed corpora have none:
+    FDIC starts at `BKPREM`, the leaderboard at `Average`. So this is
+    a usable signal, and it is the same TIME_LIKE set the loader
+    already drops columns by, rather than a second opinion that could
+    disagree with the first.
+
+    It is EVIDENCE, not a declaration. Whatever it returns is reported
+    as ASSUMED unless a caller states otherwise, for the same reason
+    the basis is: an inference presented as a fact is how a tool hands
+    someone a confident wrong answer.
+    """
+    try:
+        first = next(csv.reader(io.StringIO(text)))
+    except StopIteration:
+        return False
+    return any(h.strip().lower() in TIME_LIKE for h in first)
+
+
+def _order_state(ordered, evidence):
+    """Resolve the row-order question into something reportable.
+
+    Time-dependent checks — the trend confound and correlation drift —
+    are meaningless without row order. `AI_EVAL_PREREG.md` finding 1
+    records the trend check firing on 541 language models and naming
+    shared CALENDAR movement in data that has no calendar. That defect
+    is closed here, and the drift check consults the same gate rather
+    than growing a second one that could drift out of step.
+    """
+    if ordered is None:
+        return {"ordered": bool(evidence), "declared": False,
+                "evidence": ("a time-like column is present"
+                             if evidence else
+                             "no time-like column in the header")}
+    return {"ordered": bool(ordered), "declared": True,
+            "evidence": "declared by the caller"}
+
+
 def _audit_core(names, M, notes, path, file, scale_by=(),
-                scale_exempt=(), basis=None):
+                scale_exempt=(), basis=None, ordered=None, evidence=False):
     d = len(names)
 
     # Every basis is computed, always. Nothing here branches on a
@@ -1031,12 +1238,46 @@ def _audit_core(names, M, notes, path, file, scale_by=(),
             f"{', '.join(sorted(res['views']))}")
     res["headline_pr"] = res["views"][res["headline"]]["pr"]
     res["trend_gap"] = res["raw"]["pr"] - res["diff"]["pr"]
+    # Gated on row order. The gap is still COMPUTED and reported — it is
+    # a real difference between two views and hiding it would be its own
+    # dishonesty — but it is not allowed to FIRE as a calendar finding
+    # on data with no calendar.
+    res["order"] = _order_state(ordered, evidence)
     res["trend_dominated"] = bool(
-        np.isfinite(res["trend_gap"]) and res["trend_gap"] < -0.5)
+        res["order"]["ordered"]
+        and np.isfinite(res["trend_gap"]) and res["trend_gap"] < -0.5)
+
     # rows per metric: below ~10 the per-metric regression is strained
     # even after the adjustment, and correlations themselves get noisy
     res["rows_per_metric"] = (len(M) - 1) / d if d else float("nan")
     res["crowded"] = res["rows_per_metric"] < 10
+
+    # Correlation drift. Registered in DRIFT_PREREG.md, scored 8/9
+    # before being wired in here. Computed on the differenced basis:
+    # two metrics sharing a trend correlate in both windows regardless,
+    # and the question is about their relationship, not their drift.
+    #
+    # GATED ON THE ASSURANCE GRADE, as registered. Splitting the file in
+    # half halves the evidence for a check that already needs more of it
+    # than the others, so a grade the rest of the report treats as
+    # marginal is not good enough here. The first wired version returned
+    # 114 pairs on a grade-C corpus before this gate was added — a
+    # handling decision fixed in advance and then not implemented, which
+    # is exactly what pre-registration is supposed to catch.
+    grade = assurance(res)["grade"]
+    if not res["order"]["ordered"]:
+        res["drift"] = correlation_drift(names, M, ordered=False)
+    elif grade in ("C", "D"):
+        res["drift"] = {
+            "status": "insufficient_evidence",
+            "reason": (f"evidence grade {grade} — {res['rows_per_metric']:.1f} "
+                       f"rows per metric, and splitting the file halves that "
+                       f"again; drift needs more history than the other checks, "
+                       f"not less"),
+            "pairs": [], "grade": grade}
+    else:
+        res["drift"] = correlation_drift(
+            names, np.diff(M, axis=0) if len(M) > 1 else M, ordered=True)
     return res
 
 
@@ -1332,6 +1573,10 @@ def assurance(res):
 # designed AROUND but does not detect. They are shown as not-checked
 # rather than hidden, because implying coverage we lack is the exact
 # thing this catalogue exists to prevent.
+# Checks that mean nothing without row order. Listed once, so the gate
+# cannot be applied to one and forgotten on the other.
+TIME_DEPENDENT = {"trend-confound", "correlation-drift"}
+
 CATALOGUE = [
     ("trend-confound", "Calendar trend confound", True,
      lambda r: r["trend_dominated"],
@@ -1339,6 +1584,14 @@ CATALOGUE = [
                 f"differenced {r['diff']['pr']:.1f} — "
                 f"{abs(r['trend_gap']):.1f} of the apparent structure is "
                 f"shared calendar movement")),
+    ("correlation-drift", "Relationship changed mid-file", True,
+     lambda r: bool(r.get("drift", {}).get("pairs")),
+     lambda r: (f"{len(r['drift']['pairs'])} pair(s) correlate differently "
+                f"in the second half of this export than the first — "
+                f"strongest: {r['drift']['pairs'][0]['metric_a']} ~ "
+                f"{r['drift']['pairs'][0]['metric_b']}, r "
+                f"{r['drift']['pairs'][0]['r_first']:+.3f} → "
+                f"{r['drift']['pairs'][0]['r_second']:+.3f}")),
     ("identity", "Definitional identities", True,
      lambda r: bool(r["diff"]["identities"] or r["raw"]["identities"]),
      lambda r: (f"{len(r['diff']['identities'] or r['raw']['identities'])} "
@@ -1374,6 +1627,32 @@ CATALOGUE = [
      lambda r: False,
      lambda r: "not detected; see REAL_DASHBOARDS.md"),
 ]
+
+
+def _skip_reason(res, key):
+    """Why a check did not run on this data, or None if it did.
+
+    Only ever about the DATA. A check that is not implemented reports
+    that through `available` instead, and the two must not merge: the
+    demo page prints unbuilt checks specifically so their absence is
+    visible, and a gated check quietly borrowing that slot would undo
+    the point of printing it.
+    """
+    if key not in TIME_DEPENDENT:
+        return None
+    order = res.get("order") or {}
+    if not order.get("ordered", True):
+        if order.get("declared"):
+            return ("rows were declared to be entities rather than a "
+                    "timeline, so a before and an after do not exist")
+        return (f"rows are not in time order — {order.get('evidence', '')}. "
+                f"If they are consecutive observations, declare it with "
+                f"--ordered and this check will run")
+    if key == "correlation-drift":
+        st = (res.get("drift") or {}).get("status")
+        if st and st != "ok":
+            return (res.get("drift") or {}).get("reason")
+    return None
 
 
 def report_payload(res):
@@ -1428,12 +1707,36 @@ def report_payload(res):
             "rows_per_metric": num(grade["rows_per_metric"], 1),
             "reasons": grade["reasons"],
         },
+        # `skipped` is separate from `available` on purpose. "We have not
+        # built this" and "this cannot be asked of your data" are
+        # different statements, and collapsing them would let a gated
+        # check hide behind the unimplemented one.
         "failure_catalogue": [
             {"id": key, "label": label, "available": avail,
-             "fired": bool(avail and fires(res)),
-             "detail": detail(res) if (avail and fires(res)) else None}
+             "skipped": _skip_reason(res, key),
+             "fired": bool(avail and not _skip_reason(res, key)
+                           and fires(res)),
+             "detail": (detail(res)
+                        if (avail and not _skip_reason(res, key)
+                            and fires(res)) else None)}
             for key, label, avail, fires, detail in CATALOGUE
         ],
+        "order": dict(res.get("order", {})),
+        "correlation_drift": {
+            "status": res.get("drift", {}).get("status"),
+            "reason": res.get("drift", {}).get("reason"),
+            "pairs_tested": res.get("drift", {}).get("pairs_tested"),
+            "rows_per_window": res.get("drift", {}).get("rows_per_window"),
+            "shared_shift": num(res.get("drift", {}).get("shared_shift")),
+            "spread_inflation": num(res.get("drift", {}).get("spread_inflation"), 2),
+            "unstable": bool(res.get("drift", {}).get("unstable", False)),
+            "pairs": [
+                {"metric_a": p["metric_a"], "metric_b": p["metric_b"],
+                 "r_first": num(p["r_first"]), "r_second": num(p["r_second"]),
+                 "z": num(p["z"], 2), "q_value": num(p["q_value"], 6),
+                 "direction": p["direction"]}
+                for p in res.get("drift", {}).get("pairs", [])],
+        },
         "trend_confound": {
             "raw": num(res["raw"]["pr"], 3),
             "differenced": num(res["diff"]["pr"], 3),

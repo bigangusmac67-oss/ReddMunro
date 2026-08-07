@@ -257,7 +257,20 @@ def main():
               f"raw PR {r['raw']['pr']:.2f}")
         check("differenced view recovers ~6", r["diff"]["pr"] >= 5.0,
               f"diff PR {r['diff']['pr']:.2f}")
-        check("trend domination is flagged", r["trend_dominated"])
+        # The fixture IS a time series, but write_csv emits no date
+        # column, so the engine has no evidence of row order and the
+        # trend check now correctly declines to fire. Declaring it is
+        # the fix — and this is the regression that proves the gate
+        # works, since it failed the moment the gate went in.
+        check("trend domination is NOT flagged without evidence of order",
+              not r["trend_dominated"],
+              "no time column, no declaration — a calendar finding would "
+              "be invented")
+        r_ord = SA.audit(p, ordered=True)
+        check("trend domination is flagged once order is declared",
+              r_ord["trend_dominated"])
+        check("declaring order is recorded as a declaration",
+              r_ord["order"]["declared"] and r_ord["order"]["ordered"])
         check("headline uses the honest (differenced) number",
               r["headline_pr"] == r["diff"]["pr"])
 
@@ -1001,6 +1014,109 @@ def main():
         check("export happens in-tab via Blob, with no upload",
               "URL.createObjectURL" in pg and "fetch(" not in
               pg.split("function doExport")[1].split("}")[0])
+
+    # ------------------------------------------------------------------
+    # 20. correlation drift and the row-order gate
+    #
+    # Registered in DRIFT_PREREG.md and scored there before any of this
+    # was wired in. These checks defend the wiring, not the detector:
+    # that a gated check is visibly skipped rather than silently absent,
+    # and that "we have not built this" stays distinguishable from "this
+    # cannot be asked of your data".
+    # ------------------------------------------------------------------
+    print("\n20. correlation drift + row-order gate")
+
+    rng20 = np.random.default_rng(21)
+
+    def stat20(n, d, k, noise=0.35):
+        L = rng20.standard_normal((k, d))
+        F = rng20.standard_normal((n, k))
+        return F @ L + noise * rng20.standard_normal((n, d))
+
+    nm = [f"m{j:02d}" for j in range(12)]
+
+    # Control before positive, same order as the registration.
+    flat = SA.correlation_drift(nm, stat20(2000, 12, 3), ordered=True)
+    check("stationary correlated data does not drift",
+          flat["status"] == "ok" and not flat["pairs"],
+          f"{len(flat['pairs'])} of {flat['pairs_tested']} pairs")
+
+    X20 = stat20(2000, 12, 3)
+    a, b = rng20.standard_normal(2000), rng20.standard_normal(2000)
+    b[1000:] = 0.8 * a[1000:] + np.sqrt(1 - 0.64) * b[1000:]
+    X20[:, 0], X20[:, 1] = a, b
+    got = SA.correlation_drift(nm, X20, ordered=True)
+    check("planted drift is found and ranked first",
+          bool(got["pairs"]) and
+          (got["pairs"][0]["metric_a"], got["pairs"][0]["metric_b"]) == ("m00", "m01"),
+          f"{len(got['pairs'])} flagged")
+
+    # The incident confound: one shared spike must not become N findings.
+    X21 = stat20(2000, 12, 3)
+    X21[-60:] += 9.0 * np.abs(rng20.standard_normal((60, 1)))
+    naive = SA.correlation_drift(nm, X21, ordered=True, naive=True)
+    ship = SA.correlation_drift(nm, X21, ordered=True)
+    check("a shared incident is not reported as many new couplings",
+          len(ship["pairs"]) / ship["pairs_tested"] < 0.05
+          and len(naive["pairs"]) > len(ship["pairs"]),
+          f"naive {len(naive['pairs'])}/{naive['pairs_tested']}, "
+          f"shipped {len(ship['pairs'])}/{ship['pairs_tested']}")
+
+    check("unordered rows get no drift result",
+          SA.correlation_drift(nm, X20)["status"] == "not_applicable")
+    check("too few rows refuses rather than guesses",
+          SA.correlation_drift(nm, stat20(40, 12, 3),
+                               ordered=True)["status"] == "insufficient_rows")
+
+    # BH q-values must agree with the rejections they are printed beside.
+    # The first version decided by BH and displayed Bonferroni, so a
+    # flagged pair showed q = 0.053 against a 0.05 threshold.
+    for p_ in got["pairs"]:
+        check(f"reported q-value is consistent with rejection ({p_['metric_a']})",
+              p_["q_value"] <= SA.DRIFT_Q, f"q = {p_['q_value']:.2e}")
+
+    # --- the gate, end to end -----------------------------------------
+    tmp20 = tempfile.mkdtemp()
+    try:
+        pth = os.path.join(tmp20, "noorder.csv")
+        write_csv(pth, nm, X20)
+        no = SA.report_payload(SA.audit(pth))
+        yes = SA.report_payload(SA.audit(pth, ordered=True))
+
+        cat = {c["id"]: c for c in no["failure_catalogue"]}
+        check("time-dependent checks are SKIPPED, not silently absent",
+              all(cat[k]["skipped"] and cat[k]["available"] and not cat[k]["fired"]
+                  for k in ("trend-confound", "correlation-drift")),
+              "both carry a reason naming the data, not the roadmap")
+        check("the skip reason says how to fix it",
+              "--ordered" in cat["correlation-drift"]["skipped"])
+        check("an unbuilt check stays distinguishable from a gated one",
+              any(c["available"] is False and not c["skipped"]
+                  for c in no["failure_catalogue"]),
+              "the rolling-average entry must not hide behind the gate")
+        check("declaring order lets the drift check run",
+              yes["correlation_drift"]["status"] == "ok"
+              and bool(yes["correlation_drift"]["pairs"]))
+        check("order state is reported either way",
+              no["order"]["ordered"] is False
+              and yes["order"]["declared"] is True)
+        check("payload is JSON-safe with drift present",
+              isinstance(json.dumps(yes), str))
+    finally:
+        shutil.rmtree(tmp20, ignore_errors=True)
+
+    # Registered handling decision that the first wired version missed:
+    # a C or D grade returns no pairs. It returned 114 on grade-C data.
+    thin = SA.correlation_drift  # keep the name in scope for readability
+    nyc = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                       "data", "nyc_covid_dashboard.csv")
+    if os.path.exists(nyc):
+        rp = SA.report_payload(SA.audit(nyc))
+        check("a thin corpus reports insufficient evidence, not 114 pairs",
+              rp["assurance"]["grade"] in ("C", "D")
+              and rp["correlation_drift"]["status"] == "insufficient_evidence"
+              and not rp["correlation_drift"]["pairs"],
+              f"grade {rp['assurance']['grade']}")
 
     print("\n" + "=" * 70)
     print(f"{len(PASS)} passed, {len(FAIL)} failed")

@@ -184,16 +184,30 @@ def render(res: dict, f: Fmt, top: int = 12, width: int = 100,
                                   "percentages — more history would fix this"))
 
     # ---- failure catalogue -----------------------------------------
-    fired = [c for c in CATALOGUE if c[2] and c[3](res)]
-    checked = [c for c in CATALOGUE if c[2]]
+    # A skipped check is neither run nor clear. Rendering it green was
+    # the first version's bug: on entity-indexed data the two
+    # time-dependent checks reported "clear", which reads as "we looked
+    # and found nothing" when nothing was looked at.
+    def skipped(key):
+        return SA._skip_reason(res, key)
+
+    fired = [c for c in CATALOGUE if c[2] and not skipped(c[0]) and c[3](res)]
+    checked = [c for c in CATALOGUE if c[2] and not skipped(c[0])]
+    gated = [c for c in CATALOGUE if c[2] and skipped(c[0])]
     out += ["", rule]
     out.append("  " + f.bold("FAILURE CATALOGUE")
-               + f.dim(f"   {len(checked)} checks run · {len(fired)} fired"))
+               + f.dim(f"   {len(checked)} checks run · {len(fired)} fired"
+                       + (f" · {len(gated)} not applicable" if gated else "")))
     out.append("")
     for key, label, available, fires, detail in CATALOGUE:
+        why = skipped(key) if available else None
         if not available:
             out.append(f"  {f.dim('○')} {f.dim(label):<44}"
-                       + f.dim("not checked"))
+                       + f.dim("not implemented"))
+        elif why:
+            out.append(f"  {f.dim('–')} {f.dim(label):<44}"
+                       + f.dim("not applicable"))
+            out.append(f.dim(f"      {why}"))
         elif fires(res):
             out.append(f"  {f.amber('▲')} {f.bold(label)}")
             out.append(f.dim(f"      {detail(res)}"))
@@ -304,7 +318,8 @@ def _run(a, f) -> int:
             return 2
         res = SA.audit(a.csv, ignore=[s for s in a.ignore.split(",") if s],
                        max_rows=a.max_rows, scale_by=tuple(a.scale_by),
-                       scale_exempt=tuple(a.scale_exempt), basis=a.basis)
+                       scale_exempt=tuple(a.scale_exempt), basis=a.basis,
+                       ordered=a.ordered)
         if not res["basis_declared"]:
             # stderr so it survives `--json > file`, where the terminal
             # suffix that carries this on an interactive run is not seen
@@ -418,6 +433,18 @@ def build_parser() -> argparse.ArgumentParser:
                         help="which basis the headline reports: raw, "
                              "differenced, or ratio:COL. Declared, never "
                              "inferred.")
+        sp.add_argument("--ordered", dest="ordered", action="store_true",
+                        default=None,
+                        help="declare that rows are consecutive "
+                             "observations in time. Enables the trend and "
+                             "correlation-drift checks, which mean nothing "
+                             "otherwise. Assumed from a time-like column "
+                             "in the header if not stated.")
+        sp.add_argument("--not-ordered", dest="ordered", action="store_false",
+                        help="declare that rows are entities — banks, "
+                             "hosts, models — not a timeline. Suppresses "
+                             "the time-dependent checks rather than "
+                             "letting them invent a before and an after.")
         sp.add_argument("--strict-basis", action="store_true",
                         help="exit 2 rather than assume a basis. Intended "
                              "for CI. Will become the default for "
@@ -545,7 +572,7 @@ def render_domain(res, lex, f, width):
 
 def CATALOGUE_FIRED(res):
     return [(key, label) for key, label, avail, fires, _d in SA.CATALOGUE
-            if avail and fires(res)]
+            if avail and not SA._skip_reason(res, key) and fires(res)]
 
 
 # ----------------------------------------------------------------------
