@@ -1,0 +1,15 @@
+# Line endings are deterministic here, not a function of who cloned it.
+#
+# The CSV corpora are EVIDENCE. Every scored prediction in
+# REAL_DASHBOARDS.md and the four pre-registrations is only checkable
+# against the exact bytes they were scored on, so git must not rewrite
+# them on the way in or out.
+* text=auto eol=lf
+
+*.csv   -text
+*.png   binary
+*.svg   -text
+
+# The worksheet is written utf-8-sig for Excel; normalising it would
+# defeat the BOM.
+*-worksheet.csv -text
