@@ -87,6 +87,8 @@ body{margin:0;background:var(--bg);color:var(--ink);
   position:sticky;top:0;z-index:10}
 .app-header .inner{max-width:960px;margin:0 auto;padding:16px 20px;
   display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:30px;height:30px;flex:0 0 auto;color:var(--ink-faint)}
 .brand h1{margin:0;font-size:15px;letter-spacing:.16em;font-weight:600;font-family:var(--mono)}
 .brand .subtitle{display:block;margin-top:3px;font-size:12px;color:var(--ink-faint)}
 .nav-links a{color:var(--ink-dim);text-decoration:none;font-size:13px;margin-left:18px;
@@ -116,10 +118,24 @@ button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2)
 button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
 button:disabled{opacity:.4;cursor:not-allowed}
 .try .faint{flex:1;min-width:240px}
+.declare{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:26px}
+.dcl b{display:block;margin-bottom:6px}
+.dcl p{margin:0;font-size:13px;line-height:1.55}
+.dcl .sub{font-size:12px}
+details.diag{border:1px solid var(--line);border-radius:10px;margin:14px 0;
+  background:var(--panel)}
+details.diag>summary{cursor:pointer;padding:14px 18px;font-size:13px;
+  color:var(--ink-dim);list-style:none}
+details.diag>summary::-webkit-details-marker{display:none}
+details.diag>summary:hover{color:var(--ink)}
+details.diag>summary::before{content:"▸ ";display:inline-block;width:1em}
+details.diag[open]>summary::before{content:"▾ "}
+details.diag[open]>summary{border-bottom:1px solid var(--line)}
+details.diag .card{border:0;margin:0;background:transparent}
 .exports{display:flex;gap:10px;flex-wrap:wrap;margin:2px 0 14px}
 .exports button{display:flex;gap:8px;align-items:baseline}
 .exports button b{font-weight:600}
-.exports button span{color:var(--muted);font-size:12px}
+.exports button span{color:var(--ink-dim);font-size:12px}
 .exports button:hover:not(:disabled) span{color:inherit}
 
 /* hero */
@@ -247,8 +263,19 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--panel
 <header class="app-header">
   <div class="inner">
     <div class="brand">
-      <h1>REDD MUNRO</h1>
-      <span class="subtitle">Find out how much of your dashboard is measuring the same thing</span>
+      <!-- The same four bars as the favicon: two of them identical and
+           overlaid. It is the product in one mark, and it was doing that
+           work in the browser tab where nobody looks at it. -->
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <rect x="12" y="30" width="7" height="22" rx="2" fill="currentColor" opacity=".45"/>
+        <rect x="23" y="16" width="7" height="36" rx="2" fill="#60a5fa"/>
+        <rect x="27" y="16" width="7" height="36" rx="2" fill="#60a5fa" opacity=".55"/>
+        <rect x="45" y="24" width="7" height="28" rx="2" fill="currentColor" opacity=".45"/>
+      </svg>
+      <div>
+        <h1>REDD MUNRO</h1>
+        <span class="subtitle">Find out how much of your dashboard is measuring the same thing</span>
+      </div>
     </div>
     <nav class="nav-links">
       <a href="#auditor">Run it</a>
@@ -365,18 +392,45 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--panel
       told the answer.</span>
   </div>
 
+  <!-- Both declarations live here, together, ABOVE the findings they
+       change. The row-order control was briefly rendered in the middle
+       of the results, between two cards that report — a question to
+       answer sitting inside the answers, with the lens control in a
+       different card entirely. Two declarations, one place. -->
   <div class="card" id="lenscard" style="display:none">
-    <h2>Domain lens</h2>
-    <div class="toolbar">
-      <select id="lens"><option value="">No lens — mathematical states only</option></select>
-      <span class="faint">Naming only. Re-renders in place; the engine does not run again.</span>
-    </div>
-    <div class="faint" style="margin-top:12px">The maths is identical in every
-      domain — a lens changes what a finding is <em>called</em>, never what it
-      is. Lenses ship for AI evaluation and retail. <strong>Neither has a
-      validated corpus behind it yet</strong>, so treat those as vocabulary
-      rather than as evidence; the results on this page are all from
-      infrastructure, public health, transit and banking data.
+    <h2>Declare</h2>
+    <div class="sub" style="margin-bottom:16px">Two things the engine will
+      not guess from your numbers. It reads the header and tells you what it
+      assumed; correcting it re-runs.</div>
+
+    <div class="declare">
+      <div class="dcl">
+        <b>Are these rows a timeline?</b>
+        <p class="faint">The calendar-trend and mid-file-change checks are
+          meaningless unless each row follows the one above it in time. On a
+          file whose rows are hosts, services or accounts, they would invent
+          a before and an after.</p>
+        <div id="ordstate" class="sub"></div>
+        <div class="exports" style="margin:10px 0 0">
+          <button id="ord-yes" type="button"><b>In time order</b></button>
+          <button id="ord-no" type="button"><b>Rows are entities</b></button>
+        </div>
+      </div>
+
+      <div class="dcl">
+        <b>Domain lens</b>
+        <p class="faint">Renames findings for your domain. It cannot change
+          a number or add a check — re-renders in place, the engine does not
+          run again.</p>
+        <div class="toolbar" style="margin-top:8px">
+          <select id="lens"><option value="">No lens — mathematical states only</option></select>
+        </div>
+        <p class="faint" style="margin-top:10px">Lenses ship for AI evaluation
+          and retail. <strong>Neither has a validated corpus behind it
+          yet</strong> — treat those as vocabulary rather than evidence. The
+          results on this page are all from infrastructure, public health,
+          transit and banking data.</p>
+      </div>
     </div>
   </div>
 
@@ -781,27 +835,21 @@ function render(p) {
       <span class="t">${esc(c.label)}${detail}${na}</span></div>`;
   }).join('');
 
+  // The declaration controls live in the Declare card above the
+  // results; render() only reports what is currently assumed or stated.
   const ord = p.order || {};
-  const orderCard = `<div class="card">
-    <h2>Are these rows a timeline?</h2>
-    <div class="sub" style="margin-bottom:10px">Two checks — the calendar
-      trend confound and the mid-file relationship change — mean nothing
-      unless each row follows the one above it in time. On a file whose
-      rows are hosts, services or accounts, they would invent a before and
-      an after. ${ord.declared
-        ? 'You have declared this.'
-        : 'Currently <b>assumed</b>: ' + esc(ord.evidence || '') + '.'}</div>
-    <div class="exports">
-      <button id="ord-yes" type="button" ${ord.ordered ? 'disabled' : ''}>
-        <b>Rows are in time order</b><span>run the time checks</span></button>
-      <button id="ord-no" type="button" ${ord.ordered ? '' : 'disabled'}>
-        <b>Rows are entities</b><span>hosts, services, accounts</span></button>
-    </div>
-    <div class="faint">Re-runs the audit. The engine never guesses this from
-      the numbers — it reads the header for a time-like column and says so,
-      because a wrong guess here produces a confident finding about a
-      calendar that does not exist.</div>
-  </div>`;
+  const os_ = document.getElementById('ordstate');
+  if (os_) {
+    os_.innerHTML = ord.declared
+      ? `<b>Declared:</b> rows are ${ord.ordered ? 'in time order' : 'entities'}.`
+      : `<b>Assumed:</b> ${esc(ord.evidence || '')} — so time-dependent checks
+         are <b>${ord.ordered ? 'running' : 'skipped'}</b>.`;
+  }
+  const oy0 = document.getElementById('ord-yes');
+  const on0 = document.getElementById('ord-no');
+  if (oy0) oy0.disabled = !!ord.ordered;
+  if (on0) on0.disabled = !ord.ordered;
+
 
   const fired = p.failure_catalogue.filter(c => c.available && c.fired).length;
   const avail = p.failure_catalogue.filter(c => c.available).length;
@@ -835,6 +883,32 @@ function render(p) {
       blast-radius check clears each metric against live monitors, SLOs and
       runbooks.</div></div>` : '';
 
+  // Deliberately rendered AFTER the failure catalogue. An export button
+  // above the evidence invites someone to download a summary before
+  // reading what fired, and the summary's whole job is to say what was
+  // and was not established.
+  const exportCard = `<div class="card">
+    <h2>Take this away</h2>
+    <div class="sub" style="margin-bottom:12px">Both files are written in this
+      tab. Nothing is uploaded to produce them.</div>
+    <div class="exports">
+      <button id="exp-md" type="button"><b>Summary (.md)</b>
+        <span>for a PR or ticket</span></button>
+      <button id="exp-csv" type="button"><b>Blast-radius worksheet (.csv)</b>
+        <span>${s.metrics} rows, evidence pre-filled</span></button>
+    </div>
+    <div class="faint">The summary states what was proved and what was not. It
+      is deliberately not a sign-off: the engine can show a metric carries no
+      variation the others lack, but not whether it is the sole condition on a
+      paging rule or an SLO. The worksheet has a column for each of those, and
+      completing it <em>is</em> the safety check — which is why the summary
+      says so on its face, where whoever reviews the change will read it.</div>
+  </div>`;
+
+  const notAudited = (p.excluded_columns && p.excluded_columns.length)
+    ? `<div class="card"><h2>Not audited</h2>
+       <div class="sub">${p.excluded_columns.map(esc).join('<br>')}</div></div>` : '';
+
   const banner = isSample ? `<div class="samp">
     <b>This is a live audit of a public Prometheus instance.</b>
     <span>11 metrics of real infrastructure telemetry — not a mock-up, not a
@@ -857,42 +931,20 @@ function render(p) {
   </div>
 
   <div class="card">
-    <h2>Take this away</h2>
-    <div class="sub" style="margin-bottom:12px">Both files are written in this
-      tab. Nothing is uploaded to produce them.</div>
-    <div class="exports">
-      <button id="exp-md" type="button"><b>Summary (.md)</b>
-        <span>for a PR or ticket</span></button>
-      <button id="exp-csv" type="button"><b>Blast-radius worksheet (.csv)</b>
-        <span>${s.metrics} rows, evidence pre-filled</span></button>
-    </div>
-    <div class="faint">The summary states what was proved and what was not. It
-      is deliberately not a sign-off: the engine can show a metric carries no
-      variation the others lack, but not whether it is the sole condition on a
-      paging rule or an SLO. The worksheet has a column for each of those, and
-      completing it <em>is</em> the safety check — which is why the summary
-      says so on its face, where whoever reviews the change will read it.</div>
-  </div>
-
-  <div class="card">
     <h2>Failure catalogue — ${avail} checks run · ${fired} fired</h2>
     ${catalogue}
   </div>
 
-  ${orderCard}
   ${renderLens(p, lexicons[lensSel.value])}
-  ${bases}${sums}${arch}
+  ${arch}
+  ${exportCard}
 
-  ${(p.excluded_columns && p.excluded_columns.length) ? `<div class="card">
-    <h2>Not audited</h2><div class="sub">${p.excluded_columns.map(esc).join('<br>')}</div>
-    </div>` : ''}`;
+  ${(bases || sums || notAudited) ? `<details class="diag">
+    <summary>Diagnostics — how the numbers were reached${sums ? ' · subset sums' : ''}${bases ? ' · every basis' : ''}${notAudited ? ' · excluded columns' : ''}</summary>
+    ${bases}${sums}${notAudited}
+  </details>` : ''}`;
 
   // Bound after innerHTML, because innerHTML replaces the nodes.
-  const oy = document.getElementById('ord-yes');
-  const on = document.getElementById('ord-no');
-  if (oy) oy.addEventListener('click', () => redeclare(true));
-  if (on) on.addEventListener('click', () => redeclare(false));
-
   const md = document.getElementById('exp-md');
   const cv = document.getElementById('exp-csv');
   if (md) md.addEventListener('click', () => doExport('md'));
@@ -978,6 +1030,14 @@ function handle(f) {
 // Lens change re-renders from the cached payload. Pyodide is untouched:
 // the lexicon is naming, not analysis, so the numbers cannot move.
 lensSel.addEventListener('change', () => { if (lastPayload) render(lastPayload); });
+
+// Bound ONCE. These two live in static markup rather than inside
+// out.innerHTML, so binding them from render() stacked a fresh listener
+// on every re-render and one click fired redeclare N times.
+document.getElementById('ord-yes')
+  .addEventListener('click', () => redeclare(true));
+document.getElementById('ord-no')
+  .addEventListener('click', () => redeclare(false));
 
 drop.addEventListener('click', () => ready && file.click());
 file.addEventListener('change', e => e.target.files[0] && handle(e.target.files[0]));

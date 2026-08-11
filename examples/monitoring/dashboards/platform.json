@@ -1,0 +1,58 @@
+{
+  "title": "Platform overview",
+  "uid": "platform-overview",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "type": "query",
+        "query": { "query": "label_values(node_load5, instance)" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Compute",
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Load average",
+          "targets": [
+            { "expr": "node_load15{instance=~\"$instance\"}" },
+            { "expr": "node_load5{instance=~\"$instance\"}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Memory available",
+          "targets": [
+            { "expr": "node_memory_MemAvailable_bytes / 1024 / 1024" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk usage",
+      "targets": [
+        { "expr": "demo_disk_usage_bytes" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "In-flight requests",
+      "targets": [
+        { "expr": "sum(demo_api_http_requests_in_progress)" }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Billing export (SQL, deliberately not parsed)",
+      "targets": [
+        { "rawSql": "SELECT ts, node_load1 FROM metrics_archive" }
+      ]
+    }
+  ]
+}

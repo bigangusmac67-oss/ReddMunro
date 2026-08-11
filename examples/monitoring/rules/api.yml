@@ -1,0 +1,35 @@
+# CASE 3 — the collision the worksheet exists to catch.
+#
+# `request_rate_total` is an ARCHIVE candidate on this corpus: it
+# matches methodGET_status200 at r = 0.99987, so statistically it
+# carries no unique variation. It is also the sole expression behind a
+# paging alert. Both facts are true, and only one of them is in the CSV.
+groups:
+  - name: api
+    rules:
+      - alert: RequestRateCollapse
+        expr: rate(request_rate_total[5m]) < 1
+        for: 5m
+        labels:
+          severity: critical
+          page: "true"
+        annotations:
+          summary: "API request rate has collapsed"
+          runbook: "https://runbooks.example/api-down"
+
+      - alert: NotFoundSpike
+        expr: |
+          rate(methodGET_status404[5m])
+            / ignoring(code) rate(methodGET_status200[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+
+      # A string literal containing a metric name, which must not count
+      # as a reference — label_replace takes it as text, not a series.
+      - record: job:api_saturation:ratio
+        expr: |
+          label_replace(
+            demo_api_http_requests_in_progress / 100,
+            "source", "node_load1", "instance", "(.*)"
+          )

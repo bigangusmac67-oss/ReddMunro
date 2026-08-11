@@ -1,0 +1,12 @@
+﻿metric,recommendation,unique_variance,duplicated_by,identity_partner,cluster_id,scan_evidence,referenced_by_monitors,referenced_by_slos,referenced_by_other_dashboards,referenced_by_runbooks,last_queried_days_ago,reviewer,note
+request_rate_total,ARCHIVE,0.0011,methodGET_status200,methodGET_status200,0,monitors: RequestRateCollapse (examples/monitoring\rules\api.yml:10),,,,,,,
+methodGET_status200,KEEP (identity survivor),0.0016,request_rate_total,request_rate_total,0,monitors: NotFoundSpike (examples/monitoring\rules\api.yml:20),,,,,,,
+methodGET_status404,ARCHIVE,0.0184,request_rate_total,,0,monitors: NotFoundSpike (examples/monitoring\rules\api.yml:20),,,,,,,
+node_load5,KEEP,0.0704,node_load15,,1,dashboards: Compute / Load average (examples/monitoring\dashboards\platform.json); instance (examples/monitoring\dashboards\platform.json),,,,,,,
+node_load15,KEEP,0.1157,node_load5,,1,monitors: NodeLoadHigh (examples/monitoring\rules\node.yml:12) | dashboards: Compute / Load average (examples/monitoring\dashboards\platform.json),,,,,,,
+node_load1,KEEP,0.2984,node_load5,,,"not found in 3 scanned source(s) - NOT a clearance; the scan cannot see monitors, SLOs or queries outside them",,,,,,,
+node_memory_Buffers_bytes,KEEP,0.5324,node_memory_Cached_bytes,,,"not found in 3 scanned source(s) - NOT a clearance; the scan cannot see monitors, SLOs or queries outside them",,,,,,,
+node_memory_Cached_bytes,KEEP,0.5395,node_memory_Buffers_bytes,,,"not found in 3 scanned source(s) - NOT a clearance; the scan cannot see monitors, SLOs or queries outside them",,,,,,,
+node_memory_MemAvailable_bytes,KEEP,0.9624,node_memory_Buffers_bytes,,,monitors: MemoryAvailableLow (examples/monitoring\rules\node.yml:26); instance:memory_available:ratio (examples/monitoring\rules\node.yml:23) | dashboards: Compute / Memory available (examples/monitoring\dashboards\platform.json),,,,,,,
+demo_api_http_requests_in_progress,KEEP,0.9836,methodGET_status200,,,monitors: job:api_saturation:ratio (examples/monitoring\rules\api.yml:30) | dashboards: In-flight requests (examples/monitoring\dashboards\platform.json),,,,,,,
+demo_disk_usage_bytes,KEEP,1.0,request_rate_total,,,monitors: DiskFillingUp (examples/monitoring\rules\node.yml:36) | dashboards: Disk usage (examples/monitoring\dashboards\platform.json),,,,,,,

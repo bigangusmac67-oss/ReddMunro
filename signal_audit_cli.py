@@ -335,12 +335,51 @@ def _run(a, f) -> int:
     if a.command == "prune" and getattr(a, "worksheet", None) is not None:
         out = a.worksheet or os.path.splitext(a.csv)[0] + "_blast_radius.csv"
         text = SA.blast_radius_worksheet(res)
+
+        # Pre-fill the machine-answerable columns from rule files and
+        # dashboards on disk. Evidence only: cells the graph cannot
+        # speak to are left EMPTY rather than filled with "no", because
+        # an empty cell reads as unanswered and "no" reads as checked.
+        # See SAFETY_BOUNDARIES.md condition 3 — a person still signs.
+        graph = None
+        if getattr(a, "refs", None):
+            try:
+                import refgraph as RG
+                graph = RG.scan_paths(list(a.refs))
+                text = RG.annotate_worksheet(text, graph)
+            except (ImportError, FileNotFoundError) as exc:
+                print(f"{f.red('error')}: {exc}", file=sys.stderr)
+                return 2
         if out in ("-", ""):
             print(text)
         else:
-            with open(out, "w", newline="", encoding="utf-8") as fh:
+            # utf-8-SIG: the worksheet's audience opens it in Excel,
+            # which assumes the system ANSI codepage for .csv unless a
+            # BOM says otherwise. Without it "not a clearance —" renders
+            # as "not a clearance a€"", and metric names are not always
+            # ASCII either (one shipped corpus has a column called
+            # "Average ⬆️"). parse_worksheet reads utf-8-sig to match.
+            with open(out, "w", newline="", encoding="utf-8-sig") as fh:
                 fh.write(text)
             print(f"{f.cyan('saved')} {out}")
+            if graph is not None:
+                if not graph.scanned:
+                    print(f"  {f.amber('!')} " + f.dim(
+                        "no rule or dashboard files were found in the given "
+                        "path(s) — every referenced_by_* cell is blank "
+                        "because NOTHING WAS SCANNED, which is not the same "
+                        "as nothing referencing these metrics"))
+                print(f.dim(f"  pre-filled from {len(graph.scanned)} file(s); "
+                            f"{len(graph.entries)} rule/panel reference(s)"))
+                if graph.unreadable:
+                    print(f"  {f.amber('!')} " + f.dim(
+                        f"{len(graph.unreadable)} file(s) could not be parsed "
+                        f"— that is a hole in the search: "
+                        + "; ".join(graph.unreadable[:3])))
+                print(f.dim("  Cells marked 'auto:' are machine-supplied "
+                            "EVIDENCE, not clearance. An empty cell means "
+                            "the scan could not see it, which is not the "
+                            "same as nothing referencing it."))
             print(f.dim("  Complete the referenced_by_* columns before "
                         "generating any archive script."))
         return 0
@@ -451,6 +490,13 @@ def build_parser() -> argparse.ArgumentParser:
                              "non-interactive runs at 1.0.")
         sp.add_argument("--top", type=int, default=12,
                         help="rows per table (default 12)")
+        sp.add_argument("--refs", action="append", default=None,
+                        metavar="PATH",
+                        help="a directory or file of Prometheus rule YAML "
+                             "and/or Grafana dashboard JSON. Pre-fills the "
+                             "worksheet's referenced_by_* columns with "
+                             "evidence. Repeatable. Never a clearance: an "
+                             "empty cell means the scan did not see it.")
         sp.add_argument("--worksheet", nargs="?", const="", default=None,
                         metavar="PATH",
                         help="write the blast-radius safety worksheet "
@@ -650,7 +696,7 @@ def execution_guard(stream=None, cwd=None):
         "\n"
         "  Fix one of:\n"
         "    pip install -e .                  # point the install at this tree\n"
-        "    pip uninstall redd\n"
+        "    pip uninstall redd-munro\n"
         "    REDD_ALLOW_INSTALLED=1 redd ...   # deliberate wheel test\n")
     return 1
 

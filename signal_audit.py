@@ -1339,8 +1339,19 @@ def verdict_line(res):
 # one can be uploaded to the other. The first block is filled by the
 # engine; the second is what a human must answer before anything
 # executable is generated.
+# `scan_evidence` is MACHINE-supplied and belongs in the evidence block,
+# not the attestation block. The first version of the reference-graph
+# integration wrote its findings straight into `referenced_by_monitors`,
+# which reads as a boolean — `parse_worksheet` rejected the text as
+# unanswered, so a pre-filled worksheet could never unlock an export.
+#
+# Keeping them apart is also what SAFETY_BOUNDARIES.md condition 3
+# requires: the scan reports where it looked and what it saw, and the
+# human answers yes or no. Automating the look-up is the saving;
+# automating the answer is the thing this product sells against.
 WORKSHEET_EVIDENCE = ["metric", "recommendation", "unique_variance",
-                      "duplicated_by", "identity_partner", "cluster_id"]
+                      "duplicated_by", "identity_partner", "cluster_id",
+                      "scan_evidence"]
 WORKSHEET_ATTESTATION = ["referenced_by_monitors", "referenced_by_slos",
                          "referenced_by_other_dashboards",
                          "referenced_by_runbooks",
@@ -1383,7 +1394,8 @@ def blast_radius_worksheet(res):
                else "KEEP")
         w.writerow([nm, rec, round(float(u["unique"]), 4),
                     u["best_partner"], partner.get(nm, ""),
-                    cluster_of.get(nm, "")] + [""] * len(WORKSHEET_ATTESTATION))
+                    cluster_of.get(nm, ""), ""]
+                   + [""] * len(WORKSHEET_ATTESTATION))
     return buf.getvalue()
 
 

@@ -1,0 +1,40 @@
+# Example Prometheus rules, written against the metric names in
+# demo/prometheus_infra.csv so `--refs` can be demonstrated end to end.
+#
+# These are NOT from a real deployment. They are shaped to exercise the
+# four cases the reference graph exists for — see examples/README.md.
+groups:
+  - name: node
+    rules:
+      # CASE 1 — the substring trap.
+      # This references node_load15 and NOT node_load1. A grep for
+      # "node_load1" matches this line; the tokeniser does not.
+      - alert: NodeLoadHigh
+        expr: node_load15 > 8
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "15-minute load average is high"
+          runbook: "https://runbooks.example/node-load"
+
+      # CASE 2 — a recording rule, so the raw metric is referenced
+      # transitively even though no dashboard panel mentions it.
+      - record: instance:memory_available:ratio
+        expr: node_memory_MemAvailable_bytes / 16e9
+
+      - alert: MemoryAvailableLow
+        expr: instance:memory_available:ratio < 0.10
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Available memory below 10%"
+
+      # A comment mentioning node_memory_Buffers_bytes, which must NOT
+      # count as a reference. It was removed from this alert in March.
+      - alert: DiskFillingUp
+        expr: predict_linear(demo_disk_usage_bytes[6h], 4 * 3600) > 5e11
+        for: 30m
+        labels:
+          severity: warning

@@ -47,8 +47,8 @@ The HTML report is a single self-contained file — no scripts, no external requ
 ## Try it
 
 ```
-python make_demo.py                                    # builds demo_dashboard.csv
-python signal_audit.py demo_dashboard.csv --html demo_report.html
+python make_demo.py                                # builds data/demo_dashboard.csv
+python signal_audit.py data/demo_dashboard.csv --html reports/demo_report.html
 ```
 
 `demo_dashboard.csv` is a synthetic SaaS dashboard: 17 metrics over 400 days, of the kind someone would defend in a meeting. It is generated from **four** latent drivers, with two exact identities, one near-identity, one nonlinear relationship and two genuinely independent metrics planted in it.
@@ -69,7 +69,7 @@ Both of these come from a research programme that spent most of its effort tryin
 
 ## Validation
 
-`python test_signal_audit.py` — 52 checks, all against **known** ground truth. Every fixture is generated from a planted number of latent factors, so the tool's answer can be checked rather than admired:
+`python test_signal_audit.py` — 217 checks, all against **known** ground truth. Every fixture is generated from a planted number of latent factors, so the tool's answer can be checked rather than admired:
 
 | Check | Expected | Result |
 |---|---|---|
@@ -150,15 +150,20 @@ Stated plainly, because a tool that reports structure should be honest about its
 |---|---|
 | `signal_audit.py` | The tool. Single file, numpy only. |
 | `signal_audit_cli.py` | The `redd` command. Presentation only, no analysis. |
-| `test_signal_audit.py` | 155 validation checks against planted ground truth. |
+| `test_signal_audit.py` | 217 validation checks against planted ground truth. |
 | `make_demo.py` | Generates the demo dashboard with known structure. |
 | `check_pyodide.py` | Browser-compatibility preconditions (12 checks). |
+| `refgraph.py` | Reference graph — where a metric is used, from rule files and dashboards. Evidence for the worksheet, never clearance. |
+| `examples/` | Mock Prometheus rules and a Grafana dashboard, so `--refs` can be run end to end. See `examples/README.md`. |
 | `pyproject.toml` | Packaging. numpy-only runtime by design. |
 | **Evidence** | |
 | `REAL_DASHBOARDS.md` | Predictions, scoring, and what each run changed in the tool. |
 | `SCALE_BASIS_PREREG.md` | Cross-sectional scale confound — 9 predictions, 9 hits. |
 | `MI_SCALING_PREREG.md` | The MI performance repair — 7 hits, 1 failure, change abandoned. |
 | `AI_EVAL_PREREG.md` | AI leaderboards — 5 hits, 2 failures, both instructive. |
+| `DRIFT_PREREG.md` | Correlation drift — 9 predictions, 9 hit, three bugs found in the wiring. |
+| `CONTINUOUS_DIFF_SPEC.md` | Continuous auditing — 10 predictions, **unscored**, registered before any code. |
+| `SAFETY_BOUNDARIES.md` | What the tool refuses to generate, and what would be required to move that line. |
 | `data/` | Every corpus the documents above were scored against. |
 | `reports/` | The generated audits those documents refer to. |
 | **Surfaces** | |

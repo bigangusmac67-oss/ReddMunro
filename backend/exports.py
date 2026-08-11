@@ -155,6 +155,10 @@ def parse_worksheet(text: str) -> dict[str, Attestation]:
         return None
 
     out: dict[str, Attestation] = {}
+    # A worksheet round-tripped through Excel comes back with a BOM,
+    # which would otherwise make the first header key "\ufeffmetric"
+    # and silently drop every row.
+    text = text.lstrip("\ufeff")
     for row in csv.DictReader(io.StringIO(text)):
         name = (row.get("metric") or "").strip()
         if not name:

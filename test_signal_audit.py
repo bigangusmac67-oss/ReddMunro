@@ -13,6 +13,7 @@ Exit code 0 if all checks pass.
 
 import itertools
 import json
+import re
 import os
 import shutil
 import tempfile
@@ -1117,6 +1118,225 @@ def main():
               and rp["correlation_drift"]["status"] == "insufficient_evidence"
               and not rp["correlation_drift"]["pairs"],
               f"grade {rp['assurance']['grade']}")
+
+    # ------------------------------------------------------------------
+    # 21. reference graph
+    #
+    # This is not a statistical detector, so it gets no pre-registration.
+    # It gets the deterministic equivalent: the cases that must NOT match
+    # were written before the parser, because the failure mode here is a
+    # substring search that looks like it works. `node_load1` inside
+    # `node_load15` is the whole reason this is a tokeniser.
+    #
+    # SAFETY_BOUNDARIES.md condition 3 is the load-bearing constraint —
+    # the graph supplies evidence, never clearance, and these checks fail
+    # if it ever emits the latter.
+    # ------------------------------------------------------------------
+    print("\n21. reference graph")
+    import refgraph as RG
+
+    def refs(expr):
+        return (RG.extract_metric_identifiers(expr)
+                | RG._iter_label_selector_metrics(expr))
+
+    must_not = [
+        ("node_load15 > 5", "node_load1", "a prefix is not a match"),
+        ("my_node_load1_total > 5", "node_load1", "an infix is not a match"),
+        ('rate(http_requests_total{job="up"}[5m])', "up",
+         "a label VALUE is not a metric"),
+        ("sum by (node_load1) (x)", "node_load1",
+         "a grouping label is not a metric"),
+        ("# node_load1 was removed\nother > 1", "node_load1",
+         "a comment is not a reference"),
+        ('label_replace(x,"d","node_load1","s","")', "node_load1",
+         "a string literal is not a reference"),
+        ("rate(x[5m])", "m", "a duration suffix is not a metric"),
+        ("avg_over_time(disk_free[1h30m])", "h",
+         "a compound duration is not a metric"),
+    ]
+    for expr, metric, why in must_not:
+        check(f"no false match: {why}", metric not in refs(expr),
+              repr(expr[:44]))
+
+    must_match = [
+        ("node_load1 > 5", "node_load1", "bare"),
+        ("rate(node_load1[5m])", "node_load1", "inside a function"),
+        ('{__name__="node_load1"} > 1', "node_load1", "__name__ selector"),
+        ('node_load1{instance="a"} > 5', "node_load1", "with a selector"),
+    ]
+    for expr, metric, why in must_match:
+        check(f"finds a real reference: {why}", metric in refs(expr))
+
+    tmp21 = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(tmp21, "rules.yml"), "w", encoding="utf-8") as fh:
+            fh.write("groups:\n  - name: http\n    rules:\n"
+                     "      - record: job:http:rate5m\n"
+                     "        expr: sum by (job) (rate(http_requests_total[5m]))\n"
+                     "      - alert: HighErrorRate\n"
+                     "        expr: job:http:rate5m > 100\n")
+        with open(os.path.join(tmp21, "board.json"), "w", encoding="utf-8") as fh:
+            fh.write('{"title":"B","panels":[{"title":"Load",'
+                     '"targets":[{"expr":"node_load15"}]}]}')
+
+        g = RG.scan_paths([tmp21])
+        check("scan reads both file types", len(g.scanned) == 2,
+              f"{len(g.scanned)} files, {len(g.entries)} entries")
+        check("unparseable files are recorded, not skipped silently",
+              hasattr(g, "unreadable") and g.unreadable == [])
+
+        # The reference a human misses: the raw metric is on no
+        # dashboard, and every alert reaches it through a recording rule.
+        raw = g.lookup("http_requests_total")
+        check("transitive reference through a recording rule is found",
+              raw["status"] == "referenced" and raw["reference_count"] >= 2,
+              f"{raw['reference_count']} references")
+
+        check("a rule does not reference itself",
+              "job:http:rate5m" not in
+              [e for e in g.entries if e.get("defines") == "job:http:rate5m"][0]["uses"])
+
+        absent = g.lookup("node_load1")
+        check("an unfound metric is NOT reported as unreferenced",
+              absent["status"] == "not_found_in_scanned_sources",
+              absent["status"])
+        check("no lookup can ever return a clearance",
+              all(g.lookup(m)["status"] in
+                  ("referenced", "not_found_in_scanned_sources")
+                  for m in ("node_load1", "node_load15", "http_requests_total")),
+              "only two states exist, by design")
+        check("what was searched is reported with the answer",
+              absent["scanned"] == g.scanned and len(absent["scanned"]) == 2)
+
+        # SAFETY_BOUNDARIES condition 3, in code.
+        src = open(os.path.abspath(RG.__file__), encoding="utf-8").read()
+        for phrase in ("unreferenced", "safe to archive", "safe_to_delete",
+                       "clearance\":", "= \"safe\""):
+            check(f"refgraph never emits {phrase!r} as a status",
+                  f'"{phrase}"' not in src and f"'{phrase}'" not in src)
+
+        # Annotation must leave unanswerable cells EMPTY, not "no".
+        nm21 = ["http_requests_total", "node_load15", "node_load1"]
+        rng21 = np.random.default_rng(9)
+        b = rng21.standard_normal((400, 3))
+        csv21 = ",".join(nm21) + "\n" + "\n".join(
+            ",".join(f"{v:.5f}" for v in r) for r in b)
+        ws = SA.blast_radius_worksheet(SA.audit_text(csv21, label="w.csv",
+                                                     ordered=True))
+        ann = RG.annotate_worksheet(ws, g)
+        rows21 = list(__import__("csv").reader(__import__("io").StringIO(ann)))
+        h21 = rows21[0]
+        check("annotation preserves the shared column contract",
+              h21 == SA.WORKSHEET_COLUMNS)
+        mi, ni = h21.index("metric"), h21.index("note")
+        mon = h21.index("referenced_by_monitors")
+        by = {r[mi]: r for r in rows21[1:]}
+        sc = h21.index("scan_evidence")
+        check("evidence goes in scan_evidence, not the yes/no cells",
+              "monitors:" in by["http_requests_total"][sc]
+              and by["http_requests_total"][mon] == "",
+              "attestation columns are parsed as booleans; writing text "
+              "into them made every pre-filled worksheet unattestable")
+        check("an unfound metric says so, and says it is not a clearance",
+              "not found in" in by["node_load1"][sc]
+              and "NOT a clearance" in by["node_load1"][sc])
+        check("the attestation columns are untouched by the scan",
+              all(by[m][mon] == "" for m in by),
+              "the look-up is automated; the answer is not")
+
+    finally:
+        shutil.rmtree(tmp21, ignore_errors=True)
+
+
+    # ------------------------------------------------------------------
+    # 22. packaging — every module actually ships
+    #
+    # `py-modules` lists flat files with no package for setuptools to
+    # discover, so an omission is SILENT: the module imports perfectly
+    # from the source tree and is simply absent from the wheel. That is
+    # the same class of divergence as the domain lexicons landing in
+    # sys.prefix, and `refgraph` was missing until a Windows install
+    # surfaced it.
+    # ------------------------------------------------------------------
+    # The shipped examples are documentation, and documentation that
+    # drifts from behaviour is worse than none — examples/README.md
+    # makes specific claims about what is and is not found.
+    ex = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                      "examples", "monitoring")
+    if os.path.exists(ex):
+        gx = RG.scan_paths([ex])
+        check("examples scan cleanly", len(gx.scanned) == 3 and not gx.unreadable,
+              f"{len(gx.scanned)} files, {len(gx.entries)} references")
+        check("example: the ARCHIVE candidate is on a paging monitor",
+              gx.lookup("request_rate_total")["status"] == "referenced",
+              "request_rate_total ~ methodGET_status200 at r = 0.99987")
+        check("example: node_load1 is NOT matched by node_load15",
+              gx.lookup("node_load1")["reference_count"] == 0,
+              "grep finds 6; the tokeniser finds 0")
+        check("example: node_load15 IS found",
+              gx.lookup("node_load15")["reference_count"] >= 2)
+        check("example: transitive reference through a recording rule",
+              any("MemoryAvailableLow" in x for v in
+                  gx.lookup("node_memory_MemAvailable_bytes")["columns"].values()
+                  for x in v))
+        check("a missing --refs path is refused, not treated as empty",
+              _raises(lambda: RG.scan_paths([os.path.join(ex, "nope")])),
+              "scanning nothing must not read as 'nothing references these'")
+
+        # --- the conflict flag: ARCHIVE + referenced ------------------
+        rr = SA.audit(os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                                   "demo", "prometheus_infra.csv"),
+                      basis="differenced", ordered=True)
+        wsx = RG.annotate_worksheet(SA.blast_radius_worksheet(rr), gx)
+        rws = list(__import__("csv").reader(__import__("io").StringIO(wsx)))
+        hx = rws[0]
+        ix = {n: hx.index(n) for n in hx}
+        evid = [r[ix["scan_evidence"]] for r in rws[1:]]
+        rec = [r[ix["recommendation"]] for r in rws[1:]]
+
+        conflicts = [k for k, e in enumerate(evid) if e.startswith("** CONFLICT")]
+        check("an ARCHIVE candidate behind a monitor is flagged CONFLICT",
+              len(conflicts) >= 1, f"{len(conflicts)} conflict(s)")
+        check("conflicts are sorted to the top",
+              conflicts == list(range(len(conflicts))), f"rows {conflicts}")
+        check("a paging alert is called out, and sorted first",
+              "PAGING" in evid[0] and rec[0].upper().startswith("ARCHIVE"),
+              evid[0][:56])
+        check("a KEEP metric is never flagged CONFLICT",
+              not any(e.startswith("** CONFLICT") for e, c in zip(evid, rec)
+                      if not c.upper().startswith("ARCHIVE")))
+        check("the conflict row explains itself in the note column",
+              "do not archive on the arithmetic alone" in rws[1][ix["note"]])
+        check("flagging a conflict attests nothing",
+              all(r[ix["referenced_by_monitors"]] == "" for r in rws[1:]),
+              "a flag is not an answer")
+
+    print("\n22. packaging")
+    root22 = os.path.dirname(os.path.abspath(SA.__file__))
+    toml = os.path.join(root22, "pyproject.toml")
+    if os.path.exists(toml):
+        cfg = open(toml, encoding="utf-8").read()
+        listed = set(re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"',
+                                re.search(r"py-modules\s*=\s*\[([^\]]*)\]",
+                                          cfg).group(1)))
+        # Top-level .py files that are part of the shipped tool, as
+        # opposed to build scripts, corpora builders and test suites.
+        shipped = {"signal_audit", "signal_audit_cli", "refgraph", "redd"}
+        missing = sorted(shipped - listed)
+        check("every shipped module is in py-modules", not missing,
+              f"missing from the wheel: {missing}" if missing else
+              f"{len(listed)} listed")
+
+        for mod in sorted(shipped):
+            check(f"{mod}.py exists to be shipped",
+                  os.path.exists(os.path.join(root22, mod + ".py")))
+
+        # `python -m redd` must work, because pip's Scripts directory is
+        # routinely off PATH on Windows and that is the obvious recovery.
+        import redd as _redd
+        check("`python -m redd` has an entry point", callable(_redd.main))
+        check("the console script and the shim call the same function",
+              _redd.main is __import__("signal_audit_cli").main)
 
     print("\n" + "=" * 70)
     print(f"{len(PASS)} passed, {len(FAIL)} failed")

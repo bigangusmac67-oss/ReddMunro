@@ -1,5 +1,9 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+# setuptools 77+ for PEP 639: `license` as an SPDX string and
+# `license-files`. The table form { text = "..." } is rejected
+# outright by this version, which is a build failure rather
+# than a warning.
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +12,7 @@ version = "0.1.0"
 description = "Redd Munro — find out how much of your dashboard is measuring the same thing"
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Shaun Cooper" }]
 keywords = ["observability", "metrics", "finops", "dashboard",
@@ -18,7 +22,6 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Topic :: System :: Monitoring",
     "Topic :: Scientific/Engineering :: Information Analysis",
@@ -35,6 +38,11 @@ dependencies = ["numpy>=1.21"]
 server = ["fastapi>=0.110", "uvicorn[standard]>=0.27",
           "python-multipart>=0.0.9"]
 dev = ["build", "twine"]
+# Reference-graph parsing of Prometheus rule files. YAML only — Grafana
+# dashboards need no extra. Optional because signal_audit.py is
+# numpy-only by design and that is what lets it run under Pyodide;
+# nothing in refgraph.py is allowed to erode it.
+refgraph = ["pyyaml>=6.0"]
 
 [project.scripts]
 # ONE entry point. The distribution is redd-munro because plain `redd`
@@ -44,7 +52,10 @@ dev = ["build", "twine"]
 redd = "signal_audit_cli:main"
 
 [project.urls]
-Documentation = "https://github.com/example/redd-munro#readme"
+Homepage = "https://reddmunro.com"
+Source = "https://github.com/bigangusmac67-oss/ReddMunro"
+Documentation = "https://github.com/bigangusmac67-oss/ReddMunro#readme"
+Evidence = "https://github.com/bigangusmac67-oss/ReddMunro/blob/main/REAL_DASHBOARDS.md"
 
 [tool.setuptools]
 # Flat modules rather than a package directory. This preserves
@@ -59,13 +70,14 @@ Documentation = "https://github.com/example/redd-munro#readme"
 #     stays `redd`.
 #   - The module stays signal_audit because renaming it would touch four
 #     test suites, five backend modules and the browser demo for no
-#     user-visible benefit.
-# because renaming it would touch four test suites, five backend modules
-# and the browser demo for no user-visible benefit — nobody imports this
-# who is not already reading the source. Turning
-# the engine into a package would change the import surface and the
-# tests are the thing guaranteeing the analysis is correct.
-py-modules = ["signal_audit", "signal_audit_cli"]
+#     user-visible benefit. Nobody imports it who is not already reading
+#     the source.
+#
+# EVERY shipped module must be listed here. There is no package
+# directory for setuptools to discover, so an omission is silent: the
+# module works perfectly in the source tree and is simply absent from
+# the wheel. `refgraph` was missing until a Windows install surfaced it.
+py-modules = ["signal_audit", "signal_audit_cli", "refgraph", "redd"]
 
 [tool.setuptools.package-data]
 "*" = ["README.md"]
