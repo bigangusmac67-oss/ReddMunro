@@ -130,3 +130,42 @@ as "nothing references these" when in fact nothing was looked at.
 **Not parsed, and each for a reason:** SQL (a different language),
 Terraform (next, and worth doing), PagerDuty and Opsgenie configs (an API,
 not files), and anything a template variable resolves to at render time.
+
+
+---
+
+## Shadow dashboard
+
+```
+python -m redd prune demo/prometheus_infra.csv --basis differenced --ordered \
+    --dashboard examples/monitoring/dashboards/platform.json \
+    --shadow shadow.json
+```
+
+```
+0 panel(s) go empty · 1 panel(s) BREAK · 0 template variable(s) break
+  [BREAKS] Not-found ratio
+      archiving methodGET_status404 leaves node_load15 without its operand
+      rate(methodGET_status404[5m]) / rate(node_load15[5m])
+```
+
+**That panel is the whole point.** `methodGET_status404` is an archive
+candidate — no unique variance, statistically a restatement. It is also
+one operand of a ratio. Archive it and the panel does not thin out, it
+breaks, and **no audit of values could have told you**, because the
+breakage is in the query rather than in the numbers.
+
+The generated board replaces archived metrics with names that will not
+resolve, rather than deleting the targets. Deleting them would render
+perfectly — the metric still exists in your datasource, because the
+archive has not happened — and would prove nothing while looking like
+proof.
+
+It carries no `uid`, so importing it cannot overwrite the original.
+
+**What it does not establish:** that no information was lost. Two metrics
+identical during healthy traffic are exactly the pair that diverges
+during the incident the metric was kept for. The audit measured
+correlation over the same window the shadow renders, so agreement
+between them is the same evidence twice, not independent confirmation.
+The first panel of the generated dashboard says so.

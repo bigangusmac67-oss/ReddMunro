@@ -138,3 +138,26 @@ The index is now built in `np.intp`, which is correct on both platforms by const
 A guard was added on `K` while fixing it, and it caught a second latent bug the first version of the test walked straight into: an out-of-range bin count asked `np.bincount` for a **6.7 GiB** dense table on 64-bit rather than failing. `_bins_for` caps K at 12 so no real call reaches it, but a `MemoryError` from inside an MI scan would have been a genuinely bewildering thing to debug.
 
 Four checks added as section 18. They assert **the invariant, not the platform** — that no int64 upcast feeds `bincount`, and that the index is `can_cast`-safe to `intp` — because the test host is 64-bit and cannot reproduce the failure by running the code. **That is a weaker guarantee than the other 136 checks and is recorded as such.** The honest fix is a wasm32 CI job; until there is one, the browser is verified by loading it.
+
+
+---
+
+## Correction, 12/08/2026 — the cause given above was wrong
+
+This document attributed the 61% bias-floor shift on Poisson(4) to the
+four empty bins left by equal-occupancy binning. **`BINNING_PREREG.md`
+disproves that directly.**
+
+Discretising the same fixture with and without the empty bins and
+computing MI both ways gives **bit-identical results**. Entropy sums
+`p·log p`; an empty bin has `p = 0`; `0·log 0` is zero. An empty bin
+contributes nothing, so removing it cannot move the floor.
+
+The floor differs because **tied data has less entropy to begin with** —
+fewer effective outcomes, lower MI between independent draws. That is a
+property of counter data and no binning repair touches it.
+
+The M3 *measurement* stands and the stopping rule that fired on it was
+correct. What was wrong was the mechanism named afterwards, and the
+version of it recorded above is left in place rather than edited, so the
+correction is visible instead of silent.

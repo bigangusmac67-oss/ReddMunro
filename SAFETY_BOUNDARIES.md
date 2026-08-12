@@ -84,7 +84,7 @@ Explicit, so that "we never discussed it" is not available later.
 | **Merging without review** | Breaches condition 2. There is no configuration that enables it. |
 | **Emitting a `destroy`** | Breaches condition 1. Applies to Terraform, API calls, and generated scripts alike. |
 | **Deriving the attestation from the reference graph** | See below. Breaches condition 3. |
-| **Dropping series at the OTel collector** | Deletion at the pipeline edge wearing a different name. Breaches 1 and 2 together — nothing is written down, and what was dropped cannot be recovered. |
+| **Dropping series at the OTel collector, unrouted** | Deletion at the pipeline edge wearing a different name. See **Amendment 1** — a routed variant is permitted; an unrouted drop is not. |
 | **"Apply" buttons in the web UI** | The browser tool has no server and no credentials, and should not acquire them. |
 | **Time-limited overrides for enterprise customers** | The conditions are the product. A tier that removes them is selling something else. |
 
@@ -166,3 +166,119 @@ fail if the exported summary contains "safe to archive", "verified safe"
 or "approved" — the discipline is enforced in code, not in a style guide,
 and this document is the reasoning behind those tests rather than a
 softer restatement of them.
+
+---
+
+# Amendment 1 — routing, and running inside the pipeline
+
+**Proposed 11/08/2026. Amends the refusal on collector-side dropping and
+adds a scope condition that did not previously exist.**
+
+This document said the line moves only with a written argument. This is
+that argument, kept in the same file as the rule it changes, because a
+boundary document that gets quietly edited is worse than none — the
+whole value is that someone can read what was refused, when it stopped
+being refused, and on what reasoning.
+
+## What changed and why
+
+The original entry refused collector-side dropping on the grounds that
+it "breaches 1 and 2 together — nothing is written down, and what was
+dropped cannot be recovered."
+
+**Half of that was wrong.** A generated collector config committed to a
+repository and approved in a pull request *is* written down, and *is* a
+diff a human can stop. Condition 2 is satisfiable, and the original
+wording conflated "automatic" with "unreviewable".
+
+**The other half stands, and is the whole of the problem.** A filter at
+the collector discards a series *before it is ever written anywhere*.
+Removing the filter resumes collection; it does not recover the window.
+That gap is permanent, and no approval makes it otherwise. Contrast the
+Datadog exclusion this codebase already generates:
+`datadog_metric_tag_configuration` with an empty tag list collapses
+billable cardinality while **destroying nothing** — reversal is
+restoring the tags.
+
+## The routing principle
+
+> **Redundant telemetry is relocated, not destroyed.**
+
+A generated collector configuration may divert a series to cheaper
+storage. It may not send it nowhere.
+
+In practice that means the `filter` processor is paired with an exporter
+to object storage or a long-retention tier, so the series survives at a
+fraction of the ingestion cost and the undo is "read it back". The
+saving is real — vendor ingestion is what the invoice is driven by — and
+the history is intact.
+
+**Condition 1, restated for streaming data:** an operation is reversible
+only if the data it removes still exists somewhere afterwards.
+"Collection can be re-enabled" is not reversal; it is a decision to stop
+losing more.
+
+### A hard drop remains available, and remains a refusal by default
+
+Some series genuinely should not be stored anywhere — a debug counter at
+a million points a second, a metric emitting PII. So an unrouted drop
+may be generated, under three conditions, all of which must hold:
+
+1. An explicit flag requests it. It is never the default and never
+   inferred from the audit.
+2. The generated YAML carries a comment naming, in that file, exactly
+   which series stop existing and from when.
+3. The attesting reviewer is recorded against the drop specifically, not
+   against the audit generally.
+
+**What is still refused outright:** generating a config that a pipeline
+applies without a human merging it; and deriving the attestation from
+the reference graph rather than a person. Amendment 1 changes what may
+be generated. It changes nothing about who approves it.
+
+## Scope — what "runs locally" means once we are in the pipeline
+
+This needs stating precisely, because the phrase is about to start
+covering two different guarantees and only one of them is checkable.
+
+**Today, in the browser, it is structural.** There is no server. The
+tool *cannot* exfiltrate a dashboard export, and a visitor confirms that
+in the network panel in ten seconds. The claim rests on architecture,
+not on our conduct.
+
+**Inside a collector, it becomes a property of our code.** A processor
+in the pipeline sees the telemetry and could, in principle, send it
+somewhere. That it does not is then a fact about the implementation —
+auditable, because the source is Apache 2.0 and readable, but no longer
+impossible.
+
+**That is a genuine downgrade in the kind of assurance offered, and it
+must not be papered over by reusing the same sentence.** The wording
+that is true of the browser tool is not true of a collector component,
+and marketing copy that says "nothing is uploaded" without distinguishing
+them would be exactly the confident-but-wrong claim this project exists
+to catch.
+
+So any in-pipeline component ships under these conditions:
+
+- **No network egress of its own.** It writes to the exporters the
+  operator configured and opens no other connection. No licence check,
+  no usage ping, no error reporting.
+- **That property is asserted by a test**, in the same way the exported
+  summary has tests forbidding it to say "safe to archive".
+- **The page and the docs distinguish the two claims.** "There is no
+  server" for the browser tool; "no egress beyond your configured
+  exporters, and here is the test" for the collector component.
+
+## What is still true after this amendment
+
+Conditions 1, 2 and 3 are unchanged. Nothing here permits an unattested
+export, an unreviewed change, or an irreversible one — the routing
+requirement exists precisely so that condition 1 keeps being satisfiable
+in a streaming context where it otherwise could not be.
+
+## Amendment log
+
+| # | Date | Change | Reason |
+|---|---|---|---|
+| 1 | 11/08/2026 | Collector-side dropping permitted when routed to cheaper storage; unrouted drop gated behind an explicit flag. Scope section added distinguishing structural from implementation-level locality. | Original refusal conflated "automatic" with "unreviewable". Reversibility is satisfiable by relocating rather than discarding. Raised when the OTel drop-rule generator was proposed. |

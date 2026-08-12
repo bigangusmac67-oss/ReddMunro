@@ -19,22 +19,175 @@ Point it at a CSV whose columns are metrics and whose rows are observations over
 - **Per-metric contribution** — what each column would actually cost you if you deleted it
 - **Nonlinear dependence** — pairs that are strongly related but nearly uncorrelated, which a correlation matrix reports as independent
 
-> **Not on PyPI yet.** `pip install redd-munro` does not work today — the
-> name is unclaimed and the package is unpublished. Until it is, clone this
-> repo and run `python signal_audit_cli.py` in place of `redd`. Saying so
-> here rather than leaving a command that 404s, because a project arguing
-> for pre-registered honesty should not open with a broken promise.
-
 ```
-git clone https://github.com/bigangusmac67-oss/ReddMunro
-cd ReddMunro                           # numpy is the only dependency
+pip install redd-munro                 # numpy is the only dependency
+pip install "redd-munro[refgraph]"     # + Prometheus rule parsing
 
 redd run metrics.csv                   # formatted report
 redd run metrics.csv --html report.html --json out.json
 redd run metrics.csv --ignore region,cohort --top 20
 redd prune metrics.csv                 # just the deletion candidates
 redd prune metrics.csv --quiet         # bare names, for piping
+redd history                           # what previous runs found
 ```
+
+The distribution is `redd-munro`; the command is `redd`. Two names because
+plain `redd` was already taken on PyPI, and the distribution name is only
+ever typed once.
+
+If `redd` is not found afterwards, your interpreter's scripts directory is
+not on PATH — common on Windows. `python -m redd` works regardless and is
+the more portable habit.
+
+---
+
+## The actual workflow
+
+The audit is the easy half. **The hard half is that whoever deletes the
+wrong panel owns the next incident review**, and no amount of correlation
+fixes that. So the tool is a sequence, and every step exists to make the
+last one safe.
+
+### 1 · Audit
+
+```bash
+redd run board.csv --basis differenced --ordered
+```
+
+`--basis` and `--ordered` are **declarations**, not settings. The engine
+computes raw, differenced and per-unit views every time; you say which
+one the headline reports. It never infers — a tool that guesses wrong
+hands you a confident wrong answer, which is the exact failure this
+exists to catch. Undeclared, the headline is tagged `ASSUMED`.
+
+### 2 · Worksheet — the safety check, not a formality
+
+```bash
+redd prune board.csv --basis differenced --ordered --worksheet ws.csv
+```
+
+One row per metric, the statistical evidence pre-filled, and four columns
+only a human can answer: referenced by monitors, SLOs, other dashboards,
+runbooks.
+
+**Completing that worksheet *is* the safety check.** The engine can prove
+a metric carries no variation the others already carry. It cannot see
+whether that metric is the sole condition on a paging rule.
+
+### 3 · Reference scan — fill in what a machine can
+
+```bash
+redd prune board.csv --worksheet ws.csv \
+    --refs ./monitoring/rules --refs ./grafana/dashboards
+```
+
+Parses Prometheus rule YAML and Grafana dashboard JSON you already have
+in git, and fills a `scan_evidence` column. **Rows where the engine says
+ARCHIVE and the scan finds a live reference are marked `** CONFLICT **`
+and sorted to the top**, paging alerts first:
+
+```
+metric          request_rate_total
+recommendation  ARCHIVE
+unique_variance 0.0011   duplicated_by  methodGET_status200
+scan_evidence   ** CONFLICT: engine says ARCHIVE, but this metric is
+                behind a PAGING alert (RequestRateCollapse) **
+```
+
+It follows recording rules, so a raw metric on no dashboard still shows
+up if an alert reaches it through a derived series — the reference a
+human scanning dashboards misses.
+
+**It fills the evidence column and nothing else.** The yes/no cells stay
+blank for a person, because the look-up is what gets automated and the
+answer is not. And it never says "unreferenced" — only
+`not found in N scanned sources`, because a `rawSql` panel or a monitor
+in a repo it was never pointed at is invisible to it.
+
+### 4 · Shadow dashboard — see what breaks, before it does
+
+```bash
+redd prune board.csv --dashboard board.json --shadow shadow.json
+```
+
+A copy of your Grafana board where the archive candidates **do not
+resolve**. Import it alongside the original.
+
+```
+0 panel(s) go empty · 1 panel(s) BREAK · 0 template variable(s) break
+  [BREAKS] Not-found ratio
+      archiving methodGET_status404 leaves node_load15 without its operand
+```
+
+`rate(a) / rate(b)` does not thin out when `b` goes — it breaks. **No
+audit of values can tell you that**, because the breakage is in the
+query. Structural check only: it shows what breaks, not that nothing was
+lost.
+
+### 5 · Cost — arithmetic, never an estimate
+
+```bash
+redd run board.csv --cardinality scrape.txt --invoice 4100/82000
+```
+
+Redundancy is *between* metrics; your bill is driven by cardinality
+*within* one. They are reported as two axes and never summed:
+
+```
+COSTLY, not redundant   demo_disk_usage_bytes    4,200 series
+    NOT redundant — do not archive. Label 'path' has 4200 distinct
+    values. Drop the label, keep the metric.
+redundant, cheap        request_rate_total           3 series
+    archive for clarity, not for the bill
+```
+
+No price supplied means no figure, not a guessed one. There is no vendor
+price list in here, because the number that matters is on **your**
+invoice, after commitments and overage bands.
+
+### 6 · Act — relocate, never destroy
+
+```bash
+redd prune board.csv --route otel.yaml \
+    --completed-worksheet ws.csv --cold-exporter awss3/cold
+```
+
+Generates OTel Collector config that **diverts** redundant series to
+cheap storage. Two complementary filters, so you can read the file and
+see that every series still has a destination.
+
+Requires a completed, attested worksheet. Writes a file; **never applies
+it.** A metric the reviewer marked as referenced is not routed, whatever
+the arithmetic said.
+
+### 7 · Record — because one quiet window proves nothing
+
+```bash
+redd run board.csv --record --window-label quiet \
+    --window-from 2026-08-01 --window-to 2026-08-07
+redd history board.csv
+```
+
+```
+KEEP — diverged during a window you labelled 'incident':
+  req_ok ~ req_total
+    identical in 29 of 30 present run(s), EXCEPT:
+      run 013 (2026-07-14..2026-07-20) — labelled 'incident'
+    That divergence is the reason this metric exists.
+
+30 eligible run(s), but only 5.14 effective independent window(s)
+```
+
+**The exception is printed first, always.** Twenty-nine confirmations are
+one finding repeated; the run where a "redundant" pair came apart is the
+information. And 30 overlapping runs are not 30 observations — the report
+says 5.14 rather than letting you read the larger number.
+
+Record a run per week from separate exports. Do not slice one export into
+windows: scoring `HISTORY_STORE_PREREG.md` found that a corpus supporting
+one grade-A audit supports only **three** gradeable windows.
+
+---
 
 Exit codes compose in CI: `0` clean, `1` heavy redundancy (signal ratio below 0.5), `2` input error. `--no-fail` always exits 0.
 
@@ -69,7 +222,7 @@ Both of these come from a research programme that spent most of its effort tryin
 
 ## Validation
 
-`python test_signal_audit.py` — 217 checks, all against **known** ground truth. Every fixture is generated from a planted number of latent factors, so the tool's answer can be checked rather than admired:
+`python test_signal_audit.py` — 284 checks, all against **known** ground truth. Every fixture is generated from a planted number of latent factors, so the tool's answer can be checked rather than admired:
 
 | Check | Expected | Result |
 |---|---|---|
@@ -150,9 +303,13 @@ Stated plainly, because a tool that reports structure should be honest about its
 |---|---|
 | `signal_audit.py` | The tool. Single file, numpy only. |
 | `signal_audit_cli.py` | The `redd` command. Presentation only, no analysis. |
-| `test_signal_audit.py` | 217 validation checks against planted ground truth. |
+| `test_signal_audit.py` | 284 validation checks against planted ground truth. |
 | `make_demo.py` | Generates the demo dashboard with known structure. |
 | `check_pyodide.py` | Browser-compatibility preconditions (12 checks). |
+| `history.py` | Multi-window history. Reports the EXCEPTION first — the run where a 'redundant' pair came apart. |
+| `shadow.py` | A `[Shadow]` Grafana dashboard where archive candidates do not resolve. Structural check only. |
+| `routing.py` | Collector config that RELOCATES attested redundant series to cold storage. Never deletes; never applies. |
+| `cardinality.py` | Series counts per metric, from a Prometheus scrape or PromQL output. The cost axis. Fetches nothing. |
 | `refgraph.py` | Reference graph — where a metric is used, from rule files and dashboards. Evidence for the worksheet, never clearance. |
 | `examples/` | Mock Prometheus rules and a Grafana dashboard, so `--refs` can be run end to end. See `examples/README.md`. |
 | `pyproject.toml` | Packaging. numpy-only runtime by design. |
@@ -163,7 +320,10 @@ Stated plainly, because a tool that reports structure should be honest about its
 | `AI_EVAL_PREREG.md` | AI leaderboards — 5 hits, 2 failures, both instructive. |
 | `DRIFT_PREREG.md` | Correlation drift — 9 predictions, 9 hit, three bugs found in the wiring. |
 | `CONTINUOUS_DIFF_SPEC.md` | Continuous auditing — 10 predictions, **unscored**, registered before any code. |
-| `SAFETY_BOUNDARIES.md` | What the tool refuses to generate, and what would be required to move that line. |
+| `BINNING_PREREG.md` | Tied-data binning — 6 hit, 2 missed. The misses disproved the previous cycle's diagnosis and found a real under-detection on counter columns. |
+| `HISTORY_STORE_PREREG.md` | Multi-window history — **6 hit, 1 missed**. The miss found a real constraint: persistence needs ~10× the history a single audit does. H1 still unscored. |
+| `SAFETY_BOUNDARIES.md` | What the tool refuses to generate, what would move that line, and an amendment log recording when it moved. |
+| `OTEL_INTEGRATION_SPEC.md` | Collector-side cardinality and routing. Specified, **not built**; gated on Amendment 1. |
 | `data/` | Every corpus the documents above were scored against. |
 | `reports/` | The generated audits those documents refer to. |
 | **Surfaces** | |

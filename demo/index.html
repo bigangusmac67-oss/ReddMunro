@@ -70,10 +70,22 @@
   sync, and its drift guard covers it.
 -->
 <style>
+/* Palette note. Three things are deliberate here.
+   1. The text ramp is slate 200/300/400. The old ramp bottomed out at
+      #6b7280, which is 3.7:1 on this background — under AA, and it was
+      carrying real prose, not decoration. Every level now clears 7:1.
+   2. Amber is the ACTION colour: primary buttons, links, the numbers
+      that matter. Nothing decorative is amber, so amber always means
+      "this is the part to look at".
+   3. --warn is a brighter gold than --accent and is never used on its
+      own — it always sits on a tinted background with a border, so a
+      fired check cannot be mistaken for a link. */
 :root{
-  --bg:#0b0f17; --panel:#111827; --panel-2:#0f1623; --line:#1f2937;
-  --line-2:#374151; --ink:#e5e7eb; --ink-dim:#9ca3af; --ink-faint:#6b7280;
-  --accent:#60a5fa; --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+  --bg:#0b0f17; --panel:#111827; --panel-2:#0e1520; --term:#06090f;
+  --line:#1e293b; --line-2:#334155;
+  --ink:#e2e8f0; --ink-dim:#cbd5e1; --ink-faint:#94a3b8;
+  --accent:#f59e0b; --accent-hi:#fbbf24; --accent-soft:rgba(245,158,11,.10);
+  --ok:#34d399; --warn:#fbbf24; --err:#f87171;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color-scheme:dark;
 }
@@ -95,7 +107,15 @@ body{margin:0;background:var(--bg);color:var(--ink);
   border-bottom:1px solid transparent;padding-bottom:2px}
 .nav-links a:hover{color:var(--accent);border-bottom-color:var(--accent)}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+a:focus-visible,button:focus-visible,select:focus-visible,summary:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px}
+
+/* inline code reads as terminal text everywhere, not as prose */
+code{font-family:var(--mono);font-size:.92em;color:var(--ink);
+  background:var(--panel-2);border:1px solid var(--line);
+  border-radius:3px;padding:1px 5px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;
   padding:20px 22px;margin:16px 0}
 .card h2{margin:0 0 12px;font-size:11px;letter-spacing:.14em;font-weight:600;
   color:var(--ink-faint);text-transform:uppercase;font-family:var(--mono)}
@@ -108,21 +128,25 @@ body{margin:0;background:var(--bg);color:var(--ink);
 .step b{display:block;font-size:13px;margin-bottom:2px}
 .step .n{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.1em}
 
-#drop{border:1.5px dashed var(--line-2);border-radius:10px;padding:34px 20px;
-  text-align:center;cursor:pointer;transition:.15s;background:var(--panel-2)}
-#drop:hover,#drop.over{border-color:var(--accent);background:#101a2b}
+#drop{border:1.5px dashed var(--line-2);border-radius:6px;padding:34px 20px;
+  text-align:center;cursor:pointer;transition:.15s;background:var(--term)}
+#drop:hover,#drop.over{border-color:var(--accent);background:var(--accent-soft)}
 #drop.busy{opacity:.55;cursor:progress}
 .try{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:-4px 0 4px;padding:0 2px}
+/* Secondary by default: subtle, slate-bordered, gets out of the way.
+   The only high-contrast button on the page is the primary CTA. */
 button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);
-  border-radius:6px;padding:8px 14px;font-size:13px;font-family:inherit;cursor:pointer}
-button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  border-radius:4px;padding:8px 14px;font-size:13px;font-family:inherit;cursor:pointer;
+  transition:.12s}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);
+  background:var(--accent-soft)}
 button:disabled{opacity:.4;cursor:not-allowed}
 .try .faint{flex:1;min-width:240px}
 .declare{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:26px}
 .dcl b{display:block;margin-bottom:6px}
 .dcl p{margin:0;font-size:13px;line-height:1.55}
 .dcl .sub{font-size:12px}
-details.diag{border:1px solid var(--line);border-radius:10px;margin:14px 0;
+details.diag{border:1px solid var(--line);border-radius:6px;margin:14px 0;
   background:var(--panel)}
 details.diag>summary{cursor:pointer;padding:14px 18px;font-size:13px;
   color:var(--ink-dim);list-style:none}
@@ -137,6 +161,19 @@ details.diag .card{border:0;margin:0;background:transparent}
 .exports button b{font-weight:600}
 .exports button span{color:var(--ink-dim);font-size:12px}
 .exports button:hover:not(:disabled) span{color:inherit}
+/* Primary CTA: solid amber, dark ink. 8.5:1 either way round. */
+.cta{display:inline-block;background:var(--accent);border:1px solid var(--accent);
+  color:#0b0f17;border-radius:5px;padding:12px 20px;text-decoration:none;
+  font-family:var(--mono);font-size:14px;font-weight:600;transition:.12s}
+.cta:hover{background:var(--accent-hi);border-color:var(--accent-hi)}
+
+/* Terminal output. Darker than any panel so it reads as a different
+   surface, 1px slate so the edge is crisp, 3px amber on the left
+   because this particular block is the finding, not decoration. */
+pre.conflict{background:var(--term);border:1px solid var(--line-2);
+  border-left:3px solid var(--accent);border-radius:5px;padding:15px 17px;
+  margin:16px 0;color:var(--warn);font-size:13px;font-family:var(--mono);
+  overflow-x:auto;line-height:1.6;letter-spacing:.01em}
 
 /* hero */
 .hero{padding:64px 0 40px;border-bottom:1px solid var(--line)}
@@ -146,23 +183,30 @@ details.diag .card{border:0;margin:0;background:transparent}
   letter-spacing:-.02em;max-width:20ch}
 .hero h2 em{font-style:normal;color:var(--accent)}
 .hero p{font-size:17px;color:var(--ink-dim);max-width:60ch;margin:0 0 14px}
-.hero .cta{margin-top:28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.hero .cta a{background:var(--accent);color:#06101f;text-decoration:none;
-  padding:11px 20px;border-radius:7px;font-size:14px;font-weight:600}
+/* .cta is a row wrapper in the hero and a button elsewhere, so the
+   button styling has to be undone here or the row gets a filled slab. */
+.hero .cta{margin-top:28px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  background:none;border:0;padding:0;border-radius:0}
+.hero .cta a{background:var(--accent);color:#0b0f17;text-decoration:none;
+  padding:11px 20px;border-radius:5px;font-size:14px;font-weight:600;
+  border:1px solid var(--accent);transition:.12s}
+.hero .cta a:hover{background:var(--accent-hi);border-color:var(--accent-hi)}
 .hero .cta a.ghost{background:transparent;color:var(--ink-dim);
-  border:1px solid var(--line-2)}
-.hero .cta a.ghost:hover{color:var(--accent);border-color:var(--accent)}
+  border:1px solid var(--line-2);font-weight:500}
+.hero .cta a.ghost:hover{color:var(--accent);border-color:var(--accent);
+  background:var(--accent-soft)}
 
-/* hero proof */
-.proof{background:var(--panel);border:1px solid var(--line-2);border-radius:9px;
+/* hero proof — the metric comparison, styled as terminal output */
+.proof{background:var(--term);border:1px solid var(--line-2);border-radius:6px;
   padding:16px 18px;margin:22px 0 26px;max-width:60ch}
-.proof-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.proof-row code{font-family:var(--mono);font-size:13px;background:var(--panel-2);
-  padding:4px 9px;border-radius:5px;color:var(--ink)}
-.proof-row .vs{color:var(--ink-faint);font-size:12px}
-.proof-row b{font-family:var(--mono);color:var(--warn);font-size:15px;margin-left:auto}
+.proof-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.proof-row code{font-family:var(--mono);font-size:13px;background:var(--panel);
+  border:1px solid var(--line-2);padding:4px 9px;border-radius:4px;color:var(--ink)}
+.proof-row .vs{color:var(--ink-faint);font-size:12px;font-family:var(--mono)}
+.proof-row b{font-family:var(--mono);color:var(--accent);font-size:16px;
+  font-weight:700;margin-left:auto;letter-spacing:.01em}
 
-.samp{background:#0f1d2e;border:1px solid #1e3a5f;border-radius:9px;
+.samp{background:var(--term);border:1px solid var(--line-2);border-radius:6px;
   padding:13px 17px;margin:16px 0;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
 .samp b{font-size:13px;color:var(--accent)}
 .samp span{font-size:12.5px;color:var(--ink-dim)}
@@ -174,7 +218,7 @@ details.diag .card{border:0;margin:0;background:transparent}
 
 /* feature grid */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:18px}
-.feat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.feat{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px}
 .feat .ic{font-family:var(--mono);color:var(--accent);font-size:13px;margin-bottom:8px}
 .feat b{display:block;font-size:14px;margin-bottom:6px}
 .feat span{color:var(--ink-dim);font-size:13px}
@@ -188,9 +232,10 @@ details.diag .card{border:0;margin:0;background:transparent}
 footer{border-top:1px solid var(--line);margin-top:60px;padding:28px 0 60px;
   color:var(--ink-faint);font-size:12.5px}
 footer .row{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
-footer code{font-family:var(--mono)}
-footer a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(96,165,250,.4)}
-footer a:hover{border-bottom-color:var(--accent)}
+footer code{font-family:var(--mono);background:none;border:0;padding:0;
+  color:var(--ink-dim)}
+footer a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(245,158,11,.45)}
+footer a:hover{border-bottom-color:var(--accent);color:var(--accent-hi)}
 
 @media(max-width:640px){ .hero h2{font-size:30px} .hero{padding:40px 0 30px} }
 
@@ -204,8 +249,9 @@ footer a:hover{border-bottom-color:var(--accent)}
 .bar>i{display:block;height:100%;background:var(--accent)}
 
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin-top:18px}
-.kpi{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
-.kpi b{display:block;font-size:21px;font-family:var(--mono);font-weight:600}
+.kpi{background:var(--term);border:1px solid var(--line-2);border-radius:5px;padding:12px 14px}
+.kpi b{display:block;font-size:21px;font-family:var(--mono);font-weight:600;
+  color:var(--ink)}
 .kpi span{font-size:11px;color:var(--ink-faint);letter-spacing:.06em;text-transform:uppercase}
 
 .grade{display:inline-block;padding:2px 10px;border-radius:5px;font-family:var(--mono);font-weight:700}
@@ -224,7 +270,7 @@ footer a:hover{border-bottom-color:var(--accent)}
 
 .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 select{background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);
-  border-radius:6px;padding:7px 11px;font-size:13px;font-family:inherit}
+  border-radius:4px;padding:7px 11px;font-size:13px;font-family:inherit}
 select:focus{outline:none;border-color:var(--accent)}
 .lens-item{border-left:2px solid var(--accent);padding:2px 0 2px 13px;margin:16px 0}
 .lens-item h3{margin:0 0 7px;font-size:14px;font-weight:600}
@@ -238,11 +284,11 @@ th{text-align:left;font-weight:600;color:var(--ink-faint);font-size:11px;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 10px 6px 0;
   border-bottom:1px solid var(--line-2)}
 td{padding:6px 10px 6px 0;border-bottom:1px solid var(--line);
-  font-family:var(--mono);font-size:12.5px}
+  font-family:var(--mono);font-size:12.5px;color:var(--ink)}
 td.name{font-family:inherit;font-size:13px}
 .num-c{text-align:right}
 
-details.about{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:16px 0}
+details.about{background:var(--panel);border:1px solid var(--line);border-radius:6px;margin:16px 0}
 details.about>summary{padding:18px 22px;cursor:pointer;font-size:11px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--ink-faint);font-family:var(--mono);
   font-weight:600;list-style:none}
@@ -254,8 +300,8 @@ details.about h3{font-size:14px;margin:20px 0 7px;color:var(--accent)}
 details.about p{color:var(--ink-dim);font-size:13.5px;margin:9px 0}
 details.about ul{color:var(--ink-dim);font-size:13.5px;padding-left:19px;margin:9px 0}
 details.about li{margin:5px 0}
-details.about code{font-family:var(--mono);font-size:12px;background:var(--panel-2);
-  padding:1px 5px;border-radius:3px;color:var(--ink)}
+details.about code{font-family:var(--mono);font-size:12px;background:var(--term);
+  border:1px solid var(--line-2);padding:1px 5px;border-radius:3px;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -268,8 +314,8 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--panel
            work in the browser tab where nobody looks at it. -->
       <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
         <rect x="12" y="30" width="7" height="22" rx="2" fill="currentColor" opacity=".45"/>
-        <rect x="23" y="16" width="7" height="36" rx="2" fill="#60a5fa"/>
-        <rect x="27" y="16" width="7" height="36" rx="2" fill="#60a5fa" opacity=".55"/>
+        <rect x="23" y="16" width="7" height="36" rx="2" fill="#f59e0b"/>
+        <rect x="27" y="16" width="7" height="36" rx="2" fill="#f59e0b" opacity=".55"/>
         <rect x="45" y="24" width="7" height="28" rx="2" fill="currentColor" opacity=".45"/>
       </svg>
       <div>
@@ -279,6 +325,7 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--panel
     </div>
     <nav class="nav-links">
       <a href="#auditor">Run it</a>
+      <a href="#terminal">CLI</a>
       <a href="#evidence">Evidence</a>
       <a href="#about">About</a>
     </nav>
@@ -436,6 +483,88 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--panel
 
   <div id="out"></div>
 
+  <!-- WHO IT IS FOR + THE WORKFLOW.
+       The browser demo proves the maths and the privacy claim, and
+       cannot show the thing anyone would pay for. Until this section
+       existed the page mentioned `--refs`, cold storage and `redd run`
+       exactly zero times, so a visitor met a one-shot toy and never
+       learned there was a product behind it. -->
+  <section class="sec" id="who">
+    <h3>Who this is for</h3>
+    <p class="lede">Platform and SRE teams with a board nobody will
+    prune.</p>
+
+    <p>If you have two hundred tiles, four pages open during one
+    incident, and a shared understanding that nobody has deleted a panel
+    in two years because whoever deletes the wrong one owns the next
+    incident review — this was built for you.</p>
+
+    <p class="faint">If your dashboard is ten panels and you know what
+    every one of them does, you do not need this and it will tell you
+    so.</p>
+  </section>
+
+  <section class="sec" id="terminal">
+    <h3>In your terminal, in CI, in your pipeline</h3>
+    <p class="lede">The browser above proves the arithmetic. It cannot
+    show you the part that makes archiving safe.</p>
+
+    <div class="card" style="margin-top:18px">
+      <h2>pip install redd-munro</h2>
+      <p class="faint" style="margin:0 0 16px">Apache 2.0 · numpy is the
+      only dependency · nothing is uploaded from the CLI either, and
+      there is a test asserting the code cannot open a socket.</p>
+
+      <div class="steps">
+        <div class="step"><span class="n">01</span><b>Audit</b>
+          <span class="faint">Declare the basis and row order. The engine
+          computes every view and never guesses which one you meant.</span></div>
+        <div class="step"><span class="n">02</span><b>Worksheet</b>
+          <span class="faint">One row per metric, evidence pre-filled,
+          and four columns only a person can answer.</span></div>
+        <div class="step"><span class="n">03</span><b>Reference scan</b>
+          <span class="faint">Reads your Prometheus rules and Grafana
+          JSON to fill in what a machine can — and nothing else.</span></div>
+        <div class="step"><span class="n">04</span><b>Shadow board</b>
+          <span class="faint">A copy where the candidates do not resolve.
+          See what breaks before it does.</span></div>
+        <div class="step"><span class="n">05</span><b>Route</b>
+          <span class="faint">Collector config that moves redundant
+          series to cheap storage. Never deletes, never applies
+          itself.</span></div>
+        <div class="step"><span class="n">06</span><b>Record</b>
+          <span class="faint">A run per week. The report leads with the
+          window where a "redundant" pair came apart.</span></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:34px">The row that explains the whole
+    thing</h3>
+
+    <p>On the live Prometheus instance above, <code>request_rate_total</code>
+    carries <b>0.0011</b> unique variance. Statistically it is a
+    restatement of <code>methodGET_status200</code> — the engine marks it
+    <b>ARCHIVE</b>.</p>
+
+    <p>Point the reference scan at the alert rules and the worksheet
+    leads with this instead:</p>
+
+    <pre class="conflict">** CONFLICT: engine says ARCHIVE, but this metric is
+   behind a PAGING alert (RequestRateCollapse) **</pre>
+
+    <p><b>Both facts are true, and only one of them is in the CSV.</b>
+    Archive it on the arithmetic alone and the next outage pages nobody.
+    That row is sorted to the top of every worksheet, paging alerts
+    first, because on a two-hundred-panel board the one that matters
+    otherwise sits in the middle looking like all the others.</p>
+
+    <p class="faint">The scan answers two of the four columns — monitors
+    and dashboards. SLOs and runbooks it cannot read, and it says
+    <code>not found in N scanned sources</code> rather than
+    "unreferenced", because a monitor in a repo it was never pointed at
+    is invisible to it.</p>
+  </section>
+
   <section class="sec" id="safety">
     <h3>"Safe to archive" is a claim, so it has to be checked</h3>
     <p class="lede">The real reason nobody prunes a dashboard is that whoever
@@ -575,9 +704,47 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--panel
     </div>
   </details>
 
+  <!-- THE ASK. With no users yet, the CTA cannot be "buy" — it has to
+       be the thing that actually changes the risk profile, which is ten
+       teams running it on a board they care about. -->
+  <section class="sec" id="ask">
+    <h3>Run it on your dashboard and tell me what it found</h3>
+
+    <p class="lede">Including if it was useless. That is the more useful
+    message and it is the one I am short of.</p>
+
+    <p><b>Nobody has run this on a dashboard they care about yet.</b>
+    Everything on this page was measured against public data — a live
+    Prometheus instance, NYC COVID counts, ACT air quality, FDIC bank
+    filings, 541 language models. All real; none of it anyone's
+    production board.</p>
+
+    <p>I am looking for <b>ten teams</b> to run it on theirs. No sales
+    call, no trial to sign up for — the tool is Apache 2.0 and installs
+    with <code>pip install redd-munro</code>. What I want back is the
+    finding, or the reason there wasn't one.</p>
+
+    <p>There is one question I cannot answer without you. Every "keep it
+    just in case" argument in this industry rests on the belief that
+    metrics which look identical <em>come apart during incidents</em>.
+    <b>That has never been tested — here or anywhere else.</b> It is
+    written down as prediction H1 in the public repository, unscored,
+    and answering it needs a window somebody labelled
+    <code>incident</code> because their service was genuinely broken.</p>
+
+    <p style="margin-top:22px"><a class="cta"
+      href="mailto:shaun@reddmunro.com?subject=Redd%20Munro%20—%20what%20it%20found">
+      shaun@reddmunro.com</a></p>
+
+    <p class="faint">No NDA needed to send a finding; happy to sign one
+    if you would rather. If it found nothing, that is worth an email
+    too — a tool that only hears from the cases where it worked learns
+    nothing.</p>
+  </section>
+
   <footer>
     <div class="row">
-      <div>Redd Munro · Apache 2.0 · numpy only ·
+      <div>Redd Munro · <code>pip install redd-munro</code> · Apache 2.0 · numpy only ·
         <a href="https://github.com/bigangusmac67-oss/ReddMunro">source and evidence on GitHub</a></div>
       <div>Every check we run — and the one we have not built — is on this page</div>
     </div>

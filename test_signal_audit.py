@@ -1311,6 +1311,453 @@ def main():
               all(r[ix["referenced_by_monitors"]] == "" for r in rws[1:]),
               "a flag is not an answer")
 
+    # ------------------------------------------------------------------
+    # 23. cardinality, and the zero-egress claim
+    #
+    # Two axes that must not merge: redundancy BETWEEN metrics (what the
+    # engine finds) and cardinality WITHIN one (what the bill is driven
+    # by). On the fixture below the archive candidates cost 3 and 2
+    # series while a NON-redundant metric costs 4,200 — so an operator
+    # shown one blended number would delete the wrong thing.
+    #
+    # The egress checks are the code half of SAFETY_BOUNDARIES.md
+    # Amendment 1: "runs locally" stops being structural the moment this
+    # code can open a socket.
+    # ------------------------------------------------------------------
+    print("\n23. cardinality + zero egress")
+    import cardinality as CD
+
+    expo = """# HELP x help text
+# TYPE x counter
+http_requests_total{method="GET",code="200"} 1
+http_requests_total{method="GET",code="404"} 3
+http_requests_total{method="GET",path="/a,b"} 5
+http_requests_total{method="GET",path="{braces}"} 2
+node_load1 0.42
+latency_bucket{le="0.5"} 100
+latency_bucket{le="+Inf"} 300
+"""
+    ex23 = CD.parse_exposition(expo)
+    check("a comma inside a label value does not split the labels",
+          ex23["http_requests_total"]["labels"]["path"] == 2,
+          "'/a,b' is one value, not two")
+    check("a brace inside a label value does not end the block",
+          ex23["http_requests_total"]["series"] == 4)
+    check("HELP/TYPE comments are not counted as samples",
+          "HELP" not in ex23 and "TYPE" not in ex23)
+    check("an unlabelled metric is one series",
+          ex23["node_load1"]["series"] == 1)
+    check("histogram suffixes collapse to one logical metric",
+          CD.base_name("latency_bucket") == "latency"
+          and CD.base_name("http_requests_total") == "http_requests")
+
+    prom = json.dumps({"data": {"result": [
+        {"metric": {"__name__": "a"}, "value": [0, "42"]},
+        {"metric": {}, "value": [0, "9"]}]}})
+    pc = CD.parse_promql_series_count(prom)
+    check("PromQL count output parses, and a nameless row is skipped",
+          pc == {"a": {"series": 42, "labels": {}}})
+
+    # --- the two axes -------------------------------------------------
+    lines = []
+    lines += [f'request_rate_total{{c="{i}"}} 1' for i in range(3)]
+    lines += [f'methodGET_status200{{c="{i}"}} 1' for i in range(3)]
+    lines += [f'methodGET_status404{{c="{i}"}} 1' for i in range(2)]
+    lines += [f'demo_disk_usage_bytes{{path="/v/{i}"}} 1' for i in range(4200)]
+    for nm in ("node_load1", "node_load5", "node_load15",
+               "node_memory_Cached_bytes", "node_memory_Buffers_bytes",
+               "node_memory_MemAvailable_bytes"):
+        lines += [f'{nm}{{host="h{i}"}} 1' for i in range(40)]
+    lines += ["demo_api_http_requests_in_progress 1"]
+
+    prom_csv = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                            "demo", "prometheus_infra.csv")
+    if os.path.exists(prom_csv):
+        pay23 = SA.report_payload(SA.audit(prom_csv, basis="differenced",
+                                           ordered=True))
+        rep23 = CD.CardinalityReport(CD.parse_exposition("\n".join(lines)),
+                                     scope="one instance", window="24h")
+        cls = CD.classify(pay23, rep23)
+        byname = {r["metric"]: r for r in cls["rows"]}
+
+        check("an expensive NON-redundant metric is never told to archive",
+              byname["demo_disk_usage_bytes"]["quadrant"] == "expensive_only"
+              and "do not archive" in byname["demo_disk_usage_bytes"]["advice"],
+              f"{byname['demo_disk_usage_bytes']['series']} series")
+        check("and the advice names the label, not the metric",
+              "path" in byname["demo_disk_usage_bytes"]["advice"])
+        check("a cheap redundant metric is not sold as a saving",
+              byname["request_rate_total"]["quadrant"] == "redundant_only"
+              and "not for the bill" in byname["request_rate_total"]["advice"],
+              f"{byname['request_rate_total']['series']} series")
+        check("the two axes are never added into one number",
+              all(("redundant" in r) and ("high_cardinality" in r)
+                  and "score" not in r for r in cls["rows"]))
+        check("scope travels with the numbers",
+              cls["scope"] and cls["window"],
+              "a saving without its scope is a confident wrong number")
+
+    # --- cost: arithmetic, never estimation ---------------------------
+    if os.path.exists(prom_csv):
+        unpriced = CD.cost(cls, None)
+        check("no price supplied means no cost figure, not a guessed one",
+              unpriced["archivable_saving"] is None
+              and all(r["monthly_cost"] is None for r in unpriced["rows"])
+              and "YOUR invoice" in unpriced["why_null"])
+        check("the module carries no vendor price list",
+              not any(w in open(os.path.join(
+                  os.path.dirname(os.path.abspath(SA.__file__)),
+                  "cardinality.py"), encoding="utf-8").read().lower()
+                  for w in ("datadog_price", "default_price",
+                            "price = 0.", "per_series = 0.")),
+              "a default price is a guess wearing a number")
+
+        pr = CD.Price.from_invoice(4100, 82000, "GBP")
+        check("a unit price derived from an invoice shows its derivation",
+              abs(pr.per_series_month - 0.05) < 1e-12
+              and "82,000 series" in pr.source)
+
+        priced = CD.cost(cls, pr)
+        arch_series = sum(r["series"] or 0 for r in priced["rows"]
+                          if r["quadrant"].startswith("redundant"))
+        check("the saving is series x price, and nothing else",
+              abs(priced["archivable_saving"]
+                  - arch_series * pr.per_series_month) < 1e-9,
+              f"{arch_series} series x {pr.per_series_month}")
+
+        # The load-bearing honesty check: the big number is NOT a saving.
+        check("cost held by non-redundant metrics is kept separate",
+              priced["label_saving_upper_bound"]
+              > priced["archivable_saving"] * 100,
+              f"archivable {priced['archivable_saving']:.2f} vs "
+              f"upper bound {priced['label_saving_upper_bound']:.2f} — "
+              f"summing them would promise a saving no archive delivers")
+        lines = CD.cost_lines(priced)
+        check("and is labelled an upper bound, not a saving",
+              any("UPPER BOUND" in l for l in lines)
+              and any("not archivable" in l for l in lines))
+        check("the working is shown, not just the total",
+              any("unit price" in l for l in lines)
+              and any("scope" in l for l in lines))
+        check("scope travels with the money too", priced["scope"])
+
+    # ------------------------------------------------------------------
+    # 24. routing generator — the first artefact that could change a
+    #     live system. Governed by SAFETY_BOUNDARIES.md Amendment 1.
+    # ------------------------------------------------------------------
+    print("\n24. routing generator")
+    import routing as RT
+
+    demo24 = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                          "data", "demo_dashboard.csv")
+    if os.path.exists(demo24):
+        r24 = SA.audit(demo24, basis="differenced", ordered=True)
+        p24 = SA.report_payload(r24)
+        blank = SA.blast_radius_worksheet(r24)
+
+        check("an unattested worksheet generates nothing",
+              _raises(lambda: RT.generate(blank, p24,
+                                          cold_exporter="awss3/cold")),
+              "a half-filled worksheet does not unlock an export")
+
+        def complete(referenced_row=None):
+            rows = list(__import__("csv").reader(__import__("io").StringIO(blank)))
+            hh = rows[0]
+            jj = {n: hh.index(n) for n in hh}
+            o = __import__("io").StringIO()
+            ww = __import__("csv").writer(o)
+            ww.writerow(hh)
+            for n, row in enumerate(rows[1:]):
+                for c in ("referenced_by_monitors", "referenced_by_slos",
+                          "referenced_by_other_dashboards",
+                          "referenced_by_runbooks"):
+                    row[jj[c]] = ("yes" if (referenced_row == n
+                                            and c == "referenced_by_monitors")
+                                  else "no")
+                row[jj["reviewer"]] = "s.cooper"
+                ww.writerow(row)
+            return o.getvalue()
+
+        done24 = complete()
+        check("routing without a cold exporter is refused",
+              _raises(lambda: RT.generate(done24, p24, cold_exporter="")),
+              "relocated, not destroyed — Amendment 1")
+
+        y = RT.generate(done24, p24, cold_exporter="awss3/cold",
+                        primary_exporter="datadog", source="t.csv")
+
+        names = RT.routed_metrics(y)
+        half = len(names) // 2
+        check("the include and exclude lists are exact complements",
+              half > 0 and names[:half] == names[half:],
+              "every series keeps a destination, verifiable by reading it")
+        check("nothing is deleted, and the config says so",
+              "NOTHING IS DELETED" in y and "UNDO" in y)
+        check("the attesting reviewer is named in the artefact",
+              "s.cooper" in y)
+        check("each routed metric carries the evidence that justified it",
+              y.count("unique variance") == half)
+        check("the config is never described as safe or approved",
+              not any(w in y.lower() for w in
+                      ("safe to archive", "verified safe", "approved")))
+        check("the artefact says it must not be applied unreviewed",
+              "DO NOT APPLY UNREVIEWED" in y)
+
+        # The worksheet must be able to overrule the engine.
+        overruled = RT.generate(complete(referenced_row=1), p24,
+                                cold_exporter="awss3/cold")
+        check("a metric the reviewer marked referenced is NOT routed",
+              len(RT.routed_metrics(overruled)) < len(names),
+              "the human overrules the arithmetic, or the gate is a formality")
+
+        # Hard drop: available, loud, and never the default.
+        dropped = RT.generate(done24, p24, cold_exporter="",
+                              allow_drop=True)
+        check("a hard drop names what stops existing, and has no undo",
+              "STOP EXISTING" in dropped and "no undo" in dropped.lower()
+              and "UNDO" not in dropped.replace("no undo", ""),
+              "explicit, and never inferred from the audit")
+        check("the drop variant is not produced without asking",
+              "STOP EXISTING" not in y)
+
+        # One reader, not two.
+        import sys as _sys
+        _sys.path.insert(0, os.path.join(
+            os.path.dirname(os.path.abspath(SA.__file__)), "backend"))
+        import exports as _EX
+        check("routing uses the hosted service's attestation reader",
+              set(RT._parse_worksheet(done24)) == set(_EX.parse_worksheet(done24)),
+              "a second implementation would drift, and the drift would "
+              "decide whether an export unlocks")
+
+    # ------------------------------------------------------------------
+    # 25. shadow dashboard — structural check, and only that
+    # ------------------------------------------------------------------
+    print("\n25. shadow dashboard")
+    import shadow as SH
+
+    board = json.dumps({
+        "title": "Platform", "uid": "orig-123", "id": 7, "version": 9,
+        "templating": {"list": [{"name": "inst", "type": "query",
+                                 "query": {"query": "label_values(node_load5, instance)"}}]},
+        "panels": [
+            {"type": "row", "title": "Compute", "panels": [
+                {"title": "Load", "targets": [
+                    {"expr": "node_load15{instance=~\"$inst\"}"}]},
+                {"title": "Error ratio", "targets": [
+                    {"expr": "rate(methodGET_status404[5m]) / rate(request_rate_total[5m])"}]}]},
+            {"title": "Requests", "targets": [{"expr": "request_rate_total"}]},
+            {"title": "Memory", "targets": [
+                {"expr": "node_memory_MemAvailable_bytes"}]}]})
+
+    doc25, rep25 = SH.build_shadow(board, ["request_rate_total", "node_load5"])
+
+    check("an expression losing an operand is reported as BREAKING",
+          rep25["broken_panels"] == 1,
+          "rate(a)/rate(b) with b archived — invisible to an audit of values")
+    check("a panel whose only query went is merely EMPTY",
+          rep25["empty_panels"] == 1)
+    check("a broken template variable is reported separately",
+          rep25["broken_variables"] == 1, "it cascades to every panel using it")
+    check("untouched panels are untouched",
+          any(p.get("title") == "Memory" for p in doc25["panels"]))
+
+    titles25 = []
+
+    def _collect(ps):
+        for p in ps or []:
+            titles25.append(p.get("title") or "")
+            _collect(p.get("panels"))
+    _collect(doc25["panels"])
+    check("breaking panels are retitled so they are visible in Grafana",
+          any(t.startswith("[BREAKS]") for t in titles25)
+          and any(t.startswith("[EMPTY]") for t in titles25))
+
+    # Substitution, not deletion — otherwise the shadow renders perfectly
+    # because the metric has not been archived yet, and proves nothing.
+    flat = json.dumps(doc25)
+    check("archived metrics are SUBSTITUTED, not removed",
+          SH.SENTINEL_PREFIX in flat,
+          "deletion would render fine and demonstrate nothing")
+    check("the query structure survives, so the failure is the real one",
+          "rate(" in flat and "methodGET_status404" in flat)
+
+    check("the shadow gets a new identity and cannot overwrite the original",
+          doc25["uid"] is None and doc25["id"] is None
+          and "Shadow" in doc25["title"])
+
+    banner = doc25["panels"][0]
+    body = banner["options"]["content"]
+    check("the first panel states what this does NOT prove",
+          "does NOT prove" in body and "same evidence twice" in body,
+          "the audit and the shadow measured the same window")
+    check("the shadow never claims safety",
+          not any(w in flat.lower() for w in
+                  ("safe to archive", "verified safe", "proven safe",
+                   "approved")))
+    check("the report says structural only", rep25["structural_only"] is True)
+
+    # The label-argument bug: label_values(metric, LABEL).
+    check("a Grafana label argument is not read as a metric",
+          "instance" not in RG.extract_metric_identifiers(
+              "label_values(node_load5, instance)"),
+          "it was, and the shadow reported it as a lost operand")
+
+    # ------------------------------------------------------------------
+    # 26. local history store — HISTORY_STORE_PREREG.md, hard stops
+    # ------------------------------------------------------------------
+    print("\n26. history store")
+    import history as HI
+
+    tmp26 = tempfile.mkdtemp()
+    try:
+        def pay26(pairs, present, grade="A", label="quiet", eff=4.0):
+            return {
+                "engine_version": "0.1.0", "file": "b.csv",
+                "summary": {"rows": 500, "effective_signals": eff},
+                "assurance": {"grade": grade},
+                "basis": {"headline": "differenced", "declared": True},
+                "order": {"ordered": True},
+                "identity_pairs": [{"metric_a": a, "metric_b": b}
+                                   for a, b in pairs],
+                "redundancy_clusters": [], "subset_sums": [],
+                "metrics": [{"name": m} for m in present],
+                "archive_candidates": [],
+            }
+
+        root = os.path.join(tmp26, ".redd")
+        base = ["a", "b", "c"]
+        import datetime as _dt
+        for i in range(30):
+            inc = (i == 13)
+            d0 = _dt.date(2026, 7, 1) + _dt.timedelta(days=i)
+            HI.record(pay26([] if inc else [("a", "b")], base,
+                            label="incident" if inc else "quiet"),
+                      root=root,
+                      window_label="incident" if inc else "quiet",
+                      window_from=d0.isoformat(),
+                      window_to=(d0 + _dt.timedelta(days=6)).isoformat(),
+                      source="b.csv", run_id=f"{i:03d}",
+                      dataset_id=f"hash{i:03d}")
+
+        an = HI.persistence(HI.load(root), source="b.csv")
+        lines = HI.report_lines(an)
+
+        check("the store gitignores itself wherever it is created",
+              os.path.exists(os.path.join(root, ".gitignore"))
+              and "*" in open(os.path.join(root, ".gitignore"),
+                              encoding="utf-8").read())
+        check("runs are plain JSON, readable without this tool",
+              json.load(open(os.path.join(root, "history", "000.json"),
+                             encoding="utf-8"))["run_id"] == "000")
+
+        # H6 — the exception leads.
+        check("the incident exception is the FIRST thing printed",
+              lines[0].startswith("KEEP"), lines[0][:52])
+        first_rating = next((i for i, l in enumerate(lines)
+                             if "present run(s)" in l), 999)
+        first_keep = next((i for i, l in enumerate(lines)
+                           if l.startswith("KEEP")), 999)
+        check("no persistence figure appears above its exceptions",
+              first_keep < first_rating, "H6")
+        check("the exception names its run and window label",
+              any("run 013" in l and "incident" in l for l in lines))
+
+        # H4 — effective windows, not raw runs.
+        check("30 overlapping runs are not reported as 30 observations",
+              an["effective_windows"] is not None
+              and an["effective_windows"] < 10,
+              f"{an['runs_eligible']} runs -> "
+              f"{an['effective_windows']} effective windows")
+        check("and the report says so in words",
+              any("effective independent window" in l for l in lines))
+
+        # H3 — absent is not evidence.
+        root3 = os.path.join(tmp26, ".redd3")
+        for i in range(30):
+            present = base if i < 10 else ["c"]
+            HI.record(pay26([("a", "b")] if i < 10 else [], present),
+                      root=root3, window_label="quiet", source="b.csv",
+                      run_id=f"{i:03d}", dataset_id=f"h{i}")
+        an3 = HI.persistence(HI.load(root3), source="b.csv")
+        p3 = an3["pairs"][0]
+        check("a metric absent from a run is NOT counted against it",
+              p3["held"] == 10 and p3["present"] == 10,
+              f"{p3['rating']} — never 10 of 30")
+
+        # H5 — thin runs do not vote.
+        root5 = os.path.join(tmp26, ".redd5")
+        for i in range(4):
+            HI.record(pay26([("a", "b")] if i < 2 else [], base,
+                            grade="A" if i < 2 else "D"),
+                      root=root5, window_label="quiet", source="b.csv",
+                      run_id=f"{i:03d}", dataset_id=f"g{i}")
+        an5 = HI.persistence(HI.load(root5), source="b.csv")
+        check("grade C/D runs are excluded from persistence",
+              an5["runs_excluded_by_grade"] == 2
+              and an5["pairs"][0]["present"] == 2,
+              "splitting a thin corpus across windows makes it thinner")
+
+        # H7 — engine majors are refused, not pooled.
+        root7 = os.path.join(tmp26, ".redd7")
+        HI.record(pay26([("a", "b")], base), root=root7, source="b.csv",
+                  run_id="old", dataset_id="x1")
+        p7 = pay26([("a", "b")], base)
+        p7["engine_version"] = "2.0.0"
+        HI.record(p7, root=root7, source="b.csv", run_id="new",
+                  dataset_id="x2")
+        an7 = HI.persistence(HI.load(root7), source="b.csv")
+        check("runs from different engine majors are refused, not pooled",
+              an7["error"] and "engine majors" in an7["error"])
+
+        # Two dashboards are two histories.
+        rootm = os.path.join(tmp26, ".reddm")
+        HI.record(pay26([("a", "b")], base), root=rootm, source="one.csv",
+                  run_id="1", dataset_id="m1")
+        HI.record(pay26([("x", "y")], ["x", "y"]), root=rootm,
+                  source="two.csv", run_id="2", dataset_id="m2")
+        anm = HI.persistence(HI.load(rootm))
+        check("runs from different dashboards are not pooled",
+              anm["error"] and "different sources" in anm["error"],
+              "persistence is a claim about ONE dashboard's history")
+
+        # Declared, never inferred.
+        check("an unknown window label is rejected outright",
+              _raises(lambda: HI.record(pay26([], base), root=rootm,
+                                        window_label="outage")),
+              "quiet|busy|incident|unknown, declared by the operator")
+
+        # No incident label means the history says so.
+        rootq = os.path.join(tmp26, ".reddq")
+        for i in range(3):
+            HI.record(pay26([("a", "b")], base), root=rootq,
+                      window_label="quiet", source="b.csv",
+                      run_id=f"{i}", dataset_id=f"q{i}")
+        lq = HI.report_lines(HI.persistence(HI.load(rootq), source="b.csv"))
+        check("with no incident window, the report says it proves nothing "
+              "about incidents",
+              any("NO run is labelled 'incident'" in l for l in lq))
+
+        # A rating is a count, never a probability.
+        check("ratings are counts, not probabilities",
+              all("%" not in p["rating"] and "confidence" not in p["rating"]
+                  for p in an["pairs"]),
+              "'27 of 30 present runs' is checkable; '90% confident' is not")
+    finally:
+        shutil.rmtree(tmp26, ignore_errors=True)
+
+    # --- zero egress ---------------------------------------------------
+    banned = ("import socket", "import urllib", "import requests",
+              "import http.client", "from urllib", "import httpx",
+              "urlopen(", "socket.socket")
+    for mod in ("cardinality", "refgraph", "routing", "shadow", "history", "signal_audit"):
+        src23 = open(os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                                  mod + ".py"), encoding="utf-8").read()
+        hits = [b for b in banned if b in src23]
+        check(f"{mod}.py opens no network connection", not hits,
+              f"found: {hits}" if hits else
+              "asserted, because 'runs locally' must be checkable")
+
     print("\n22. packaging")
     root22 = os.path.dirname(os.path.abspath(SA.__file__))
     toml = os.path.join(root22, "pyproject.toml")
@@ -1321,7 +1768,7 @@ def main():
                                           cfg).group(1)))
         # Top-level .py files that are part of the shipped tool, as
         # opposed to build scripts, corpora builders and test suites.
-        shipped = {"signal_audit", "signal_audit_cli", "refgraph", "redd"}
+        shipped = {"signal_audit", "signal_audit_cli", "refgraph", "cardinality", "routing", "shadow", "history", "redd"}
         missing = sorted(shipped - listed)
         check("every shipped module is in py-modules", not missing,
               f"missing from the wheel: {missing}" if missing else

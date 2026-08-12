@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <!-- Four bars, two of them identical and overlaid: the product in one mark. -->
   <rect width="64" height="64" rx="12" fill="#0b0f17"/>
-  <rect x="12" y="30" width="7" height="22" rx="2" fill="#6b7280"/>
-  <rect x="23" y="16" width="7" height="36" rx="2" fill="#60a5fa"/>
-  <rect x="27" y="16" width="7" height="36" rx="2" fill="#60a5fa" opacity=".55"/>
-  <rect x="45" y="24" width="7" height="28" rx="2" fill="#6b7280"/>
+  <rect x="12" y="30" width="7" height="22" rx="2" fill="#94a3b8"/>
+  <rect x="23" y="16" width="7" height="36" rx="2" fill="#f59e0b"/>
+  <rect x="27" y="16" width="7" height="36" rx="2" fill="#f59e0b" opacity=".55"/>
+  <rect x="45" y="24" width="7" height="28" rx="2" fill="#94a3b8"/>
 </svg>

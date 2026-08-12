@@ -28,6 +28,12 @@ ws.csv
 *-worksheet.csv
 redd-*.md
 
+# The local history store. Contains the operator's metric names — the
+# first thing this tool writes to disk persistently — and is theirs, not
+# ours. Ignored by default; HISTORY_STORE_PREREG.md says so on the page
+# where the design is argued.
+.redd/
+
 # Editor / OS
 .vscode/
 .idea/

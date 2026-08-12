@@ -304,6 +304,51 @@ def json_payload(res: dict) -> dict:
 
 # ----------------------------------------------------------------------
 def _run(a, f) -> int:
+    # `history` reads the store and never touches a CSV, so it is handled
+    # before anything that assumes an input file exists.
+    if a.command == "history":
+        import history as HI
+        runs = HI.load(a.root)
+        if not runs:
+            print(f"no runs recorded in {os.path.join(a.root, 'history')}. "
+                  f"Record one with:  redd run FILE.csv --record "
+                  f"--window-label quiet", file=sys.stderr)
+            return 1
+        if a.source is None:
+            sources = sorted({r.get("source") for r in runs})
+            if len(sources) == 1:
+                a.source = sources[0]
+            else:
+                print("  " + f.bold("HISTORY") + f.dim(
+                    f"   {len(runs)} run(s) across {len(sources)} dashboards"))
+                print()
+                for src in sources:
+                    n = sum(1 for r in runs if r.get("source") == src)
+                    labels = sorted({(r.get("window") or {}).get("label")
+                                     for r in runs if r.get("source") == src})
+                    print(f"  {src:<34} {n:>3} run(s)   labels: "
+                          f"{', '.join(labels)}")
+                print()
+                print(f.dim("  Histories are per-dashboard and are never "
+                            "pooled — a persistence claim is about one "
+                            "board. Name one to see it."))
+                return 0
+        an = HI.persistence(runs, source=a.source)
+        if a.json:
+            print(json.dumps(an, indent=2, sort_keys=True))
+            return 0 if not an.get("error") else 1
+        print()
+        print("  " + f.bold("HISTORY") + f.dim(f"   {a.source}"))
+        print()
+        for line in HI.report_lines(an):
+            if line.startswith("KEEP") or "UNKNOWN" in line \
+                    or line.startswith("NO run is labelled"):
+                print("  " + f.amber(line))
+            else:
+                print("  " + line if line.strip() else "")
+        print()
+        return 0
+
     try:
         strict = a.strict_basis or os.environ.get(
             "REDD_REQUIRE_BASIS") == "1"
@@ -330,6 +375,182 @@ def _run(a, f) -> int:
     except (ValueError, FileNotFoundError) as exc:
         print(f"{f.red('error')}: {exc}", file=sys.stderr)
         return 2
+
+    # --- cardinality, the second axis --------------------------------
+    # Redundancy is between metrics; cardinality is within one. They are
+    # printed as two columns and never summed, because the largest
+    # number is usually an unbounded label on a metric nothing
+    # duplicates, and an operator shown one blended score would archive
+    # the wrong thing. See OTEL_INTEGRATION_SPEC.md.
+    if getattr(a, "cardinality", None):
+        try:
+            import cardinality as CD
+            raw = open(a.cardinality, encoding="utf-8").read()
+            counts = (CD.parse_promql_series_count(raw)
+                      if raw.lstrip().startswith("{")
+                      else CD.parse_exposition(raw))
+            if not counts:
+                print(f"{f.red('error')}: no series found in "
+                      f"{a.cardinality} — expected Prometheus exposition "
+                      f"text or PromQL count JSON", file=sys.stderr)
+                return 2
+            rep = CD.CardinalityReport(
+                counts, scope=f"as counted in {os.path.basename(a.cardinality)}; "
+                              f"other ingestion paths not visible")
+            cls = CD.classify(SA.report_payload(res), rep)
+            print()
+            print("  " + f.bold("COST AXIS")
+                  + f.dim(f"   {rep.total_series:,} series across "
+                          f"{len(counts)} metrics · {rep.scope}"))
+            print()
+            for row in cls["rows"]:
+                if row["quadrant"] == "neither":
+                    continue
+                tag = {"redundant_and_expensive": f.amber("REDUNDANT + COSTLY"),
+                       "redundant_only": f.dim("redundant, cheap  "),
+                       "expensive_only": f.cyan("COSTLY, not redundant")}[row["quadrant"]]
+                sers = f"{row['series']:,}" if row["series_known"] else "?"
+                print(f"  {tag}  {row['metric']:<34} {sers:>9} series")
+                if row["advice"]:
+                    print(f.dim(f"      {row['advice']}"))
+            if cls["unmatched"]:
+                print(f.dim(f"\n  {len(cls['unmatched'])} audited metric(s) "
+                            f"absent from the counts — no cost shown for "
+                            f"them: {', '.join(cls['unmatched'][:4])}"))
+            print(f.dim("\n  Redundancy and cardinality are different "
+                        "problems. A costly metric nothing duplicates is "
+                        "fixed by dropping a LABEL, not the metric."))
+
+            # ---- cost, only if the operator supplied a price ----------
+            unit = None
+            if a.invoice:
+                try:
+                    tot, ser = a.invoice.split("/")
+                    unit = CD.Price.from_invoice(float(tot), float(ser),
+                                                 a.currency)
+                except (ValueError, ZeroDivisionError):
+                    print(f"{f.red('error')}: --invoice expects "
+                          f"TOTAL/SERIES, e.g. 4100/82000", file=sys.stderr)
+                    return 2
+            elif a.price_per_series is not None:
+                unit = CD.Price(a.price_per_series, a.currency)
+
+            priced = CD.cost(cls, unit)
+            print()
+            print("  " + f.bold("COST") + (f.dim("   no price supplied")
+                                           if not priced["priced"] else ""))
+            print()
+            for line in CD.cost_lines(priced):
+                if line.startswith("  = "):
+                    print("  " + f.cyan(line.strip()))
+                elif "UPPER BOUND" in line or "not archivable" in line:
+                    print("  " + f.amber(line))
+                else:
+                    print("  " + f.dim(line) if not line.strip()
+                          else "  " + line)
+        except (OSError, ValueError) as exc:
+            print(f"{f.red('error')}: {exc}", file=sys.stderr)
+            return 2
+
+    # --- local history store -------------------------------------------
+    # --- record this run to the local history store --------------------
+    # Viewing is `redd history`, a separate subcommand: looking at your
+    # own recorded findings should not require re-auditing a file.
+    if getattr(a, "record", False):
+        import hashlib
+        import history as HI
+        try:
+            with open(a.csv, "rb") as fh:
+                did = hashlib.sha256(fh.read()).hexdigest()[:16]
+        except OSError:
+            did = None
+        _run_rec, path, fresh = HI.record(
+            SA.report_payload(res), window_label=a.window_label,
+            window_from=a.window_from, window_to=a.window_to,
+            source=os.path.basename(a.csv), dataset_id=did)
+        print(f"{f.cyan('recorded')} {path}")
+        if fresh:
+            print(f.dim("  Created .redd/ — plain JSON, one file per run, "
+                        "and it gitignores itself. These files hold YOUR "
+                        "metric names and are never uploaded."))
+        if a.window_label == "unknown":
+            print(f.dim("  Window labelled 'unknown'. Until at least one "
+                        "run is labelled 'incident', the history cannot "
+                        "speak to the question that matters."))
+        if not (a.window_from and a.window_to):
+            print(f.dim("  No --window-from/--window-to. Without spans, "
+                        "overlapping runs cannot be told from independent "
+                        "ones, and the history will say so rather than "
+                        "imply breadth it does not have."))
+        print(f.dim(f"  View it:  redd history {os.path.basename(a.csv)}"))
+
+    # --- shadow dashboard ---------------------------------------------
+    if getattr(a, "shadow", None):
+        if not a.dashboard:
+            print(f"{f.red('error')}: --shadow needs --dashboard, the "
+                  f"Grafana JSON to copy.", file=sys.stderr)
+            return 2
+        try:
+            import shadow as SH
+            with open(a.dashboard, encoding="utf-8") as fh:
+                doc, rep = SH.build_shadow(
+                    fh.read(), SA.report_payload(res)["archive_candidates"])
+            with open(a.shadow, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh, indent=2, ensure_ascii=False)
+            print(f"{f.cyan('saved')} {a.shadow}")
+            lines = SH.report_lines(rep)
+            print("  " + (f.amber(lines[0]) if rep["broken_panels"]
+                          or rep["broken_variables"] else f.dim(lines[0])))
+            for ln in lines[1:]:
+                print(f.dim("  " + ln) if not ln.strip().startswith("[")
+                      else "  " + f.amber(ln.strip()))
+            print(f.dim("\n  Import alongside the original. It has no uid, "
+                        "so it cannot overwrite anything."))
+            print(f.dim("  STRUCTURAL check only: it shows what breaks, not "
+                        "that nothing was lost."))
+            return 0
+        except (OSError, ValueError) as exc:
+            print(f"{f.red('error')}: {exc}", file=sys.stderr)
+            return 2
+
+    # --- routing generator -------------------------------------------
+    if getattr(a, "route", None):
+        try:
+            import routing as RT
+            if not a.completed_worksheet:
+                print(f"{f.red('error')}: --route needs "
+                      f"--completed-worksheet. The attestation is the gate; "
+                      f"without it there is nothing to generate.",
+                      file=sys.stderr)
+                return 2
+            with open(a.completed_worksheet, encoding="utf-8-sig") as fh:
+                ws_text = fh.read()
+            yaml_text = RT.generate(
+                ws_text, SA.report_payload(res),
+                cold_exporter=a.cold_exporter or "",
+                primary_exporter=a.primary_exporter,
+                allow_drop=a.allow_drop,
+                source=os.path.basename(a.csv))
+            with open(a.route, "w", encoding="utf-8") as fh:
+                fh.write(yaml_text)
+            routed = RT.routed_metrics(yaml_text)
+            n = len(routed) // (1 if a.allow_drop else 2)
+            print(f"{f.cyan('saved')} {a.route}")
+            if a.allow_drop:
+                print("  " + f.amber(f"{n} metric(s) will STOP EXISTING. "
+                                     f"There is no undo."))
+            else:
+                print(f.dim(f"  {n} metric(s) routed to "
+                            f"'{a.cold_exporter}' — nothing deleted"))
+            print(f.dim("  Review the diff and merge it yourself. This "
+                        "tool does not apply configuration."))
+            return 0
+        except RT.RoutingRefused as exc:
+            print(f"{f.red('refused')}: {exc}", file=sys.stderr)
+            return 2
+        except OSError as exc:
+            print(f"{f.red('error')}: {exc}", file=sys.stderr)
+            return 2
 
     width = shutil.get_terminal_size((100, 24)).columns
     if a.command == "prune" and getattr(a, "worksheet", None) is not None:
@@ -490,6 +711,62 @@ def build_parser() -> argparse.ArgumentParser:
                              "non-interactive runs at 1.0.")
         sp.add_argument("--top", type=int, default=12,
                         help="rows per table (default 12)")
+        sp.add_argument("--cardinality", default=None, metavar="PATH",
+                        help="Prometheus text exposition (a saved /metrics "
+                             "scrape) or the JSON from `count by (__name__)"
+                             "({__name__=~\".+\"})`. Adds the cost axis. "
+                             "Nothing is fetched — you run the query, this "
+                             "parses the output.")
+        sp.add_argument("--price-per-series", type=float, default=None,
+                        metavar="X",
+                        help="cost per series per month, from YOUR invoice. "
+                             "No price is assumed and no vendor price list "
+                             "is carried; without this, every cost figure "
+                             "is reported as unknown rather than guessed.")
+        sp.add_argument("--invoice", default=None, metavar="TOTAL/SERIES",
+                        help="derive the unit price, e.g. --invoice "
+                             "4100/82000. The arithmetic is shown.")
+        sp.add_argument("--currency", default="GBP", metavar="SYM")
+        sp.add_argument("--record", action="store_true",
+                        help="append this run to the local history store "
+                             "(.redd/history). Plain JSON, gitignored, "
+                             "never uploaded.")
+        sp.add_argument("--window-label", default="unknown",
+                        choices=("quiet", "busy", "incident", "unknown"),
+                        help="what kind of window this data covers. "
+                             "DECLARED, never inferred — a classifier "
+                             "guessing 'incident' would decide what this "
+                             "tool reports. Label at least one window "
+                             "'incident' or the history says nothing about "
+                             "incidents.")
+        sp.add_argument("--window-from", default=None, metavar="YYYY-MM-DD")
+        sp.add_argument("--window-to", default=None, metavar="YYYY-MM-DD")
+        sp.add_argument("--shadow", default=None, metavar="PATH",
+                        help="write a [Shadow] copy of --dashboard in which "
+                             "the archive candidates do not resolve. Load "
+                             "both in Grafana to see what breaks. Proves a "
+                             "STRUCTURAL claim only — see shadow.py.")
+        sp.add_argument("--dashboard", default=None, metavar="PATH",
+                        help="the Grafana dashboard JSON to shadow.")
+        sp.add_argument("--route", default=None, metavar="PATH",
+                        help="write an OTel Collector config that diverts "
+                             "attested redundant metrics to cold storage. "
+                             "Requires --completed-worksheet and "
+                             "--cold-exporter. Writes a file; never applies "
+                             "it. See SAFETY_BOUNDARIES.md Amendment 1.")
+        sp.add_argument("--completed-worksheet", default=None, metavar="PATH",
+                        help="a blast-radius worksheet with every "
+                             "operational cell answered and a reviewer "
+                             "named. Nothing is generated without one.")
+        sp.add_argument("--cold-exporter", default=None, metavar="NAME",
+                        help="exporter the redundant series are routed TO, "
+                             "e.g. awss3/cold. Required: redundant "
+                             "telemetry is relocated, not destroyed.")
+        sp.add_argument("--primary-exporter", default="otlp", metavar="NAME")
+        sp.add_argument("--allow-drop", action="store_true",
+                        help="generate a hard drop instead of a route. The "
+                             "series stop existing and there is no undo; "
+                             "the generated file says so on its face.")
         sp.add_argument("--refs", action="append", default=None,
                         metavar="PATH",
                         help="a directory or file of Prometheus rule YAML "
@@ -505,6 +782,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     common(sub.add_parser("run", help="full audit"))
     common(sub.add_parser("prune", help="just the deletion candidates"))
+
+    # Viewing history must not require re-auditing a CSV. It was a flag
+    # on `run` first, which meant looking at your own recorded history
+    # cost a full audit of a file you already audited.
+    h = sub.add_parser("history",
+                       help="what previous runs found, exceptions first")
+    h.add_argument("source", nargs="?", default=None,
+                   help="which dashboard's history, e.g. board.csv. "
+                        "Omit to list what the store holds — histories "
+                        "are per-dashboard and are never pooled.")
+    h.add_argument("--root", default=".redd", metavar="DIR",
+                   help="store location (default .redd)")
+    h.add_argument("--json", action="store_true",
+                   help="the analysis as JSON")
     return p
 
 

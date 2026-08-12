@@ -2,7 +2,7 @@
 
 One page. **Phase 1 is complete.** Every item below has been executed and verified, including the browser smoke test.
 
-**Status: 267/267 tests green.** Engine 130 · Backend 108 · Schemas 17 · Pyodide preconditions 12.
+**Status: 392 tests green.** Engine 284 · Backend 108. Plus four scoring scripts that are run and recorded rather than asserted: `score_drift.py`, `score_history.py`, `score_binning.py`, and the wasm32 CI job.
 
 ---
 
@@ -34,7 +34,9 @@ cd demo && python3 -m http.server 8000     # then open http://localhost:8000
 
 ---
 
-## 2 · PyPI publication
+## 2 · PyPI publication ☑ PUBLISHED 12/08/2026
+
+**Live at https://pypi.org/project/redd-munro/0.1.0/** — verified by installing `redd-munro[refgraph]` from the real index into a clean virtualenv and running an audit, not by reading the project page.
 
 **☑ Distribution name confirmed** — `redd` was taken, `redd-munro` is free. The command stays `redd`: `[project.scripts]` is a separate namespace, so `pip install redd-munro` installs a `redd` executable.
 
@@ -48,10 +50,6 @@ is a genuine alias package that installs the real one, not an empty
 shell.
 
 ```bash
-twine upload dist/*                      # redd-munro
-```
-
-```bash
 cd signal-audit          # the folder name is unchanged
 python -m pip install --upgrade build twine
 
@@ -60,24 +58,37 @@ python -m build                          # → dist/*.whl + dist/*.tar.gz   ✓ 
 twine check dist/*                       # ✓ both PASSED
 ```
 
-**☐ Clean-venv install test — do not skip.** A wheel that imports in your dev environment but not a fresh one is the classic packaging failure, and it costs a version number to fix after release.
+**☑ Clean-venv install test — done 12/08/2026, see the table at the foot of this file.** A wheel that imports in your dev environment but not a fresh one is the classic packaging failure, and it costs a version number to fix after release.
 
 ```bash
 python -m venv /tmp/sa-test
-/tmp/sa-test/bin/pip install dist/*.whl
-REDD_ALLOW_INSTALLED=1 /tmp/sa-test/bin/redd --version    # → redd 0.1.0
-REDD_ALLOW_INSTALLED=1 /tmp/sa-test/bin/redd run demo_dashboard.csv
-/tmp/sa-test/bin/python -c "import signal_audit; print(signal_audit.__version__)"
+/tmp/sa-test/bin/pip install "dist/*.whl[refgraph]"
+/tmp/sa-test/bin/redd --version                          # → redd 0.1.0
+cd /tmp && /tmp/sa-test/bin/redd run data/prometheus_infra.csv \
+    --basis differenced --ordered
 ```
+
+Run it from OUTSIDE the source tree. The execution guard refuses an
+installed engine while you are standing in the repo, which is the point
+of it — `REDD_ALLOW_INSTALLED=1` exists for CI, not for skipping this.
+
+**For the next release**, in this order:
 
 ```bash
-twine upload --repository testpypi dist/*         # rehearse first
-pip install --index-url https://test.pypi.org/simple/ redd-munro
+python -m twine upload -r testpypi dist/*
+python -m venv /tmp/tp && /tmp/tp/bin/pip install \
+    -i https://test.pypi.org/simple/ \
+    --extra-index-url https://pypi.org/simple/ "redd-munro[refgraph]"
+/tmp/tp/bin/redd --version
 
-twine upload dist/*                               # live
+python -m twine upload dist/*
 ```
 
-**Notes.** Wheel contains exactly `signal_audit.py`, `signal_audit_cli.py` and the `redd` entry point — verified by inspection. `numpy>=1.21` is the only runtime dependency; FastAPI/uvicorn sit under `[project.optional-dependencies].server`. PyPI refuses re-uploads of an existing version, so bump `pyproject.toml` before every release.
+`--extra-index-url` is not optional: numpy is not mirrored on TestPyPI,
+so without it the install fails on a dependency and tells you nothing
+about this package.
+
+**Notes.** Wheel contains eight modules — `signal_audit`, `signal_audit_cli`, `refgraph`, `cardinality`, `routing`, `shadow`, `history`, `redd` — verified by inspecting the built artefact, not by reading the config. See the verification table at the foot of this file. `numpy>=1.21` is the only runtime dependency; FastAPI/uvicorn sit under `[project.optional-dependencies].server`. PyPI refuses re-uploads of an existing version, so bump `pyproject.toml` before every release.
 
 ---
 
@@ -123,7 +134,7 @@ Guard verified by deliberately corrupting the copy and confirming it caught it.
 
 ## 4 · Ship / don't-ship
 
-**Shipping — Starter tier, complete:** local CLI (`run`, `prune`, `--html`, `--json`, `--worksheet`), browser sandbox, self-contained HTML reports, 267-test suite, failure catalogue in `REAL_DASHBOARDS.md`.
+**Shipping — Starter tier, complete:** local CLI (`run`, `prune`, `history`, `--html`, `--json`, `--worksheet`, `--refs`, `--cardinality`, `--shadow`, `--route`, `--record`), browser sandbox, self-contained HTML reports, 284-check engine suite, failure catalogue in `REAL_DASHBOARDS.md`.
 
 **Not shipping — Pro/Enterprise, deferred by design:** the backend is functionally complete but **must not take money yet** — auth is a stub, there is no persistence, and `InMemoryJobStore` breaks behind more than one worker. All three raise or warn rather than failing quietly.
 
@@ -138,3 +149,87 @@ Guard verified by deliberately corrupting the copy and confirming it caught it.
 | M1–M10 (windowing, phase shift, baseline wander) | Failure modes we **designed around**, not detectors we run |
 | Three-way synergy | Tested and **deferred** — found nothing pairwise missed |
 | "Runs in the browser" | **Verified** — exact figures matched, no console errors |
+
+
+---
+
+## PyPI — built, verified and published 12/08/2026
+
+Built and installed into a clean virtualenv. What was checked, because
+"it works in the repo" is not the same claim:
+
+| Check | Result |
+|---|---|
+| `python -m build` (wheel + sdist) | both build |
+| `twine check dist/*` | **PASSED** on both |
+| sdist size | **320 KB**, 26 entries — no corpora, no tests, no `.redd/` |
+| Leaked into either artefact | **none** — `.env`, `.redd`, `.git`, `ws.csv`, `test_*`, `score_*`, `__pycache__` all absent |
+| Modules in the wheel | all 8: `signal_audit`, `signal_audit_cli`, `refgraph`, `cardinality`, `routing`, `shadow`, `history`, `redd` |
+| `redd --version` from a clean venv | `redd 0.1.0` |
+| `redd run` / `prune` / `history` | all three resolve |
+| `--refs` (needs the `[refgraph]` extra) | 3 files, 14 references |
+| `--shadow` | 1 panel BREAKS, as on the source tree |
+| `--record` + `redd history` | writes `.redd/`, reads it back |
+| Domain lexicons from the wheel | `Available: ai, retail` — the `data-files`/`sys.prefix` bug stays fixed |
+| Engine result installed vs source | 5.573 effective signals, identical |
+
+**The entry point is `signal_audit_cli:main`, not `redd.cli:main`.** The
+command is still `redd`; only the module path differs. A package layout
+would break `import signal_audit` for four test suites, five backend
+modules and the browser demo, for no user-visible benefit — the
+reasoning is in `pyproject.toml` beside the setting.
+
+### Upload
+
+```bash
+cd signal-audit
+python -m pip install --upgrade build twine
+rm -rf dist build *.egg-info
+
+python -m build                    # wheel + sdist
+python -m twine check dist/*       # metadata renders on PyPI
+
+# TestPyPI FIRST — the real index is unforgiving
+python -m twine upload -r testpypi dist/*
+python -m venv /tmp/tp && /tmp/tp/bin/pip install \
+    -i https://test.pypi.org/simple/ \
+    --extra-index-url https://pypi.org/simple/ \
+    "redd-munro[refgraph]"
+/tmp/tp/bin/redd --version        # then delete /tmp/tp
+
+# only then
+python -m twine upload dist/*
+```
+
+**`0.1.0` is permanent.** A version number cannot be re-uploaded on PyPI
+even after deletion, so the clean-venv test above happens before the
+last command, not after it.
+
+The `--extra-index-url` is not optional on TestPyPI: numpy is not
+mirrored there, and without it the install fails on a dependency rather
+than on anything to do with this package.
+
+### Afterwards ☑ done
+
+`README.md` now opens with `pip install redd-munro` instead of a clone,
+and the site footer carries the command again. Both changed in the same
+commit as the release, so the project never shipped a stale claim about
+its own availability.
+
+**Verified from the live index**, not from the project page:
+
+```
+python -m venv /tmp/verify
+/tmp/verify/bin/pip install "redd-munro[refgraph]"
+/tmp/verify/bin/redd --version                    # redd 0.1.0
+/tmp/verify/bin/redd run prometheus_infra.csv --basis differenced --ordered
+                                                  # 11 metrics -> 5.6 signals
+```
+
+### The next version
+
+`0.1.0` is now permanent and cannot be re-uploaded. Everything in this
+session that came after the build — nothing, as it happens — would need
+`0.1.1`. Bump `pyproject.toml` before the next upload and re-run the
+clean-venv check; the wheel is easy to get right twice and easy to get
+wrong once.

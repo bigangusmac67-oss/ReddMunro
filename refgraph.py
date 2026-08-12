@@ -119,7 +119,7 @@ def extract_metric_identifiers(expr):
     """
     if not expr:
         return set()
-    clean = _strip_noise(expr)
+    clean = _strip_noise(strip_grafana_label_args(expr))
 
     # Label lists after by/without/on/ignoring/group_* are label names.
     # Blank them so their contents cannot be read as metrics.
@@ -146,6 +146,31 @@ def extract_metric_identifiers(expr):
             continue
         out.add(name)
     return out
+
+
+# Grafana template-variable functions. `label_values(metric, label)`
+# takes a LABEL as its second argument, and the tokeniser was reading it
+# as a metric — so a variable on `label_values(node_load5, instance)`
+# registered a metric called `instance`. Harmless in the reference graph
+# (it matches nothing) and actively misleading in the shadow generator,
+# which reported it as an operand a query would lose.
+_LABEL_VALUES = re.compile(r"\blabel_values\s*\(([^()]*)\)")
+
+
+def strip_grafana_label_args(expr):
+    """Blank the label argument of `label_values`, preserving offsets."""
+    if not expr or "label_values" not in expr:
+        return expr
+
+    def blank_second(m):
+        inner = m.group(1)
+        if "," not in inner:
+            # label_values(label) — the sole argument is a label name
+            return m.group(0)[: m.start(1) - m.start(0)] + " " * len(inner) + ")"
+        head, _sep, tail = inner.rpartition(",")
+        return (m.group(0)[: m.start(1) - m.start(0)] + head + ","
+                + " " * len(tail) + ")")
+    return _LABEL_VALUES.sub(blank_second, expr)
 
 
 def _iter_label_selector_metrics(expr):
@@ -461,3 +486,51 @@ def annotate_worksheet(csv_text, graph):
     for _k, row in annotated:
         w.writerow(row)
     return out.getvalue()
+
+
+def replace_metric_identifier(expr, old, new):
+    """Rename a metric where it appears in METRIC position, only.
+
+    Used by the shadow-dashboard generator to simulate a metric being
+    gone: substituting a name that will not resolve makes the panel fail
+    in the shadow exactly as it would once the metric is archived, while
+    the real dashboard is untouched.
+
+    Relies on `_strip_noise` blanking rather than deleting, so offsets in
+    the cleaned text still index the original. A comment, a string
+    literal, a label name and `node_load15` are all left alone; the same
+    discipline as the reference scan, for the same reason.
+    """
+    if not expr or not old:
+        return expr, 0
+    clean = _strip_noise(strip_grafana_label_args(expr))
+
+    def blank_group(m):
+        return m.group(1) + " " * (len(m.group(0)) - len(m.group(1)))
+    clean = re.sub(r"\b(by|without|on|ignoring|group_left|group_right)\s*\([^()]*\)",
+                   blank_group, clean)
+
+    spans = []
+    for m in _IDENT.finditer(clean):
+        if m.group(0) != old:
+            continue
+        tail = clean[m.end():].lstrip()
+        if tail.startswith("("):
+            continue
+        if re.match(r"[=!]~|=[^=~]|!=", tail):
+            continue
+        spans.append((m.start(), m.end()))
+
+    out, last, n = [], 0, 0
+    for a, b in spans:
+        out.append(expr[last:a])
+        out.append(new)
+        last, n = b, n + 1
+    out.append(expr[last:])
+    result = "".join(out)
+
+    # `{__name__="x"}` is a metric reference too, and lives inside a
+    # string, so the tokeniser above cannot see it.
+    pat = r'(__name__\s*=\s*")' + re.escape(old) + r'(")'
+    result, k = re.subn(pat, r"\g<1>" + new + r"\g<2>", result)
+    return result, n + k

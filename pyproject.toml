@@ -77,7 +77,7 @@ Evidence = "https://github.com/bigangusmac67-oss/ReddMunro/blob/main/REAL_DASHBO
 # directory for setuptools to discover, so an omission is silent: the
 # module works perfectly in the source tree and is simply absent from
 # the wheel. `refgraph` was missing until a Windows install surfaced it.
-py-modules = ["signal_audit", "signal_audit_cli", "refgraph", "redd"]
+py-modules = ["signal_audit", "signal_audit_cli", "refgraph", "cardinality", "routing", "shadow", "history", "redd"]
 
 [tool.setuptools.package-data]
 "*" = ["README.md"]

@@ -7,7 +7,9 @@
       {
         "name": "instance",
         "type": "query",
-        "query": { "query": "label_values(node_load5, instance)" }
+        "query": {
+          "query": "label_values(node_load5, instance)"
+        }
       }
     ]
   },
@@ -20,15 +22,21 @@
           "type": "timeseries",
           "title": "Load average",
           "targets": [
-            { "expr": "node_load15{instance=~\"$instance\"}" },
-            { "expr": "node_load5{instance=~\"$instance\"}" }
+            {
+              "expr": "node_load15{instance=~\"$instance\"}"
+            },
+            {
+              "expr": "node_load5{instance=~\"$instance\"}"
+            }
           ]
         },
         {
           "type": "timeseries",
           "title": "Memory available",
           "targets": [
-            { "expr": "node_memory_MemAvailable_bytes / 1024 / 1024" }
+            {
+              "expr": "node_memory_MemAvailable_bytes / 1024 / 1024"
+            }
           ]
         }
       ]
@@ -37,21 +45,37 @@
       "type": "timeseries",
       "title": "Disk usage",
       "targets": [
-        { "expr": "demo_disk_usage_bytes" }
+        {
+          "expr": "demo_disk_usage_bytes"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Not-found ratio",
+      "description": "Mixes an archive candidate with one that is not. Archiving methodGET_status404 leaves this expression without an operand — the shadow generator's whole point, and invisible to an audit of values.",
+      "targets": [
+        {
+          "expr": "rate(methodGET_status404[5m]) / rate(node_load15[5m])"
+        }
       ]
     },
     {
       "type": "stat",
       "title": "In-flight requests",
       "targets": [
-        { "expr": "sum(demo_api_http_requests_in_progress)" }
+        {
+          "expr": "sum(demo_api_http_requests_in_progress)"
+        }
       ]
     },
     {
       "type": "table",
       "title": "Billing export (SQL, deliberately not parsed)",
       "targets": [
-        { "rawSql": "SELECT ts, node_load1 FROM metrics_archive" }
+        {
+          "rawSql": "SELECT ts, node_load1 FROM metrics_archive"
+        }
       ]
     }
   ]
