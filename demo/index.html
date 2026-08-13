@@ -14,22 +14,22 @@
      placeholder token — a mention inside a comment is not a placeholder,
      but a literal-string check cannot tell the difference and would fail
      CI forever on a piece of documentation. -->
-<meta name="description" content="Point it at a dashboard CSV export. It reports how many genuinely distinct things you are measuring, which panels are one measurement shown twice, and which are safe to archive — with the evidence for each. Runs in your browser; nothing is uploaded.">
+<meta name="description" content="Your board has 200 panels. How many independent signals is that? Redd Munro measures how much independent information your telemetry actually carries, which panels restate one another, and which are safe to archive — with the evidence for each. Runs in your browser; nothing is uploaded.">
 <link rel="canonical" href="https://reddmunro.com/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Redd Munro">
-<meta property="og:title" content="Two of these panels are the same series. Which two?">
-<meta property="og:description" content="On a live Prometheus instance, methodGET_status200 and request_rate_total matched at r = 0.99987. Not similar — identical, on two panels, alerting separately. Audit your own dashboard export in the browser.">
+<meta property="og:title" content="Your board has 200 panels. How many independent signals is that?">
+<meta property="og:description" content="A forty-panel board driven by four underlying system states gives its owner the feeling of forty-fold coverage and the reality of four. On a live Prometheus instance: 11 metrics, 5.6 independent signals, 2 conflicts — one behind a paging alert.">
 <meta property="og:image" content="https://reddmunro.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://reddmunro.com/">
 
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Two of these panels are the same series. Which two?">
-<meta name="twitter:description" content="r = 0.99987 between two panels on a live Prometheus instance. Audit your own dashboard export in the browser — nothing is uploaded.">
+<meta name="twitter:title" content="Your board has 200 panels. How many independent signals is that?">
+<meta name="twitter:description" content="11 metrics on a live Prometheus instance carry 5.6 independent signals. Audit your own dashboard export in the browser — nothing is uploaded.">
 <meta name="twitter:image" content="https://reddmunro.com/og.png">
 <meta name="theme-color" content="#0b0f17">
 <!--
@@ -196,6 +196,59 @@ pre.conflict{background:var(--term);border:1px solid var(--line-2);
 .hero .cta a.ghost:hover{color:var(--accent);border-color:var(--accent);
   background:var(--accent-soft)}
 
+/* pull quote — the forty-panel line, which is the whole thesis */
+.pull{margin:26px 0 24px;padding:0 0 0 18px;border-left:3px solid var(--accent);
+  font-size:20px;line-height:1.45;color:var(--ink);max-width:52ch;
+  font-weight:500;letter-spacing:-.01em}
+
+/* consequence chain. Each link carries its epistemic status, so the
+   tag styling has to be legible enough to actually be read: a chain
+   whose caveats are decorative is worse than a chain with none. */
+.chain{list-style:none;display:grid;gap:10px;padding:0;margin:26px 0 10px;
+  grid-template-columns:repeat(auto-fit,minmax(158px,1fr))}
+.chain li{position:relative;background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:13px 15px}
+.chain li b{display:block;font-size:13.5px;margin-bottom:4px}
+.chain li span{display:block;font-size:12px;color:var(--ink-dim);line-height:1.45}
+.chain li i{display:inline-block;margin-top:9px;font-style:normal;
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;padding:2px 7px;border-radius:3px}
+.chain li i.ok{background:#0f2a1f;color:var(--ok);border:1px solid #17513a}
+.chain li i.part{background:#3a2c07;color:var(--warn);border:1px solid #6b5410}
+.chain li i.no{background:#3a1212;color:var(--err);border:1px solid #6b1f1f}
+.chain li::after{content:"→";position:absolute;right:-11px;top:50%;
+  transform:translateY(-50%);color:var(--ink-faint);font-size:13px;z-index:1}
+.chain li:last-child::after{content:none}
+@media(max-width:760px){ .chain li::after{content:none} }
+
+/* transformation block: board on the left, audit on the right */
+.xform{display:grid;grid-template-columns:1fr auto 1.35fr;gap:16px;
+  align-items:stretch;margin:20px 0 14px}
+.xf-side{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:16px 18px}
+.xf-side.out{background:var(--term);border-color:var(--line-2)}
+.xf-side h4{margin:0 0 12px;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-faint);font-family:var(--mono);
+  font-weight:600}
+.xf-row{display:flex;gap:10px;align-items:baseline;padding:5px 0}
+.xf-row b{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--ink);
+  min-width:3.6em;text-align:right;flex:none}
+.xf-row span{font-size:12.5px;color:var(--ink-dim);line-height:1.4}
+.xf-side.out .xf-row b{color:var(--accent)}
+.xf-row.alarm b{color:var(--warn)}
+.xf-row.alarm span{color:var(--warn)}
+.xf-arrow{align-self:center;color:var(--ink-faint);font-size:22px;
+  font-family:var(--mono)}
+@media(max-width:720px){
+  .xform{grid-template-columns:1fr}
+  .xf-arrow{transform:rotate(90deg);justify-self:center}
+}
+
+/* a command you can copy, distinct from output you cannot */
+pre.cmd{background:var(--term);border:1px solid var(--line-2);border-radius:5px;
+  padding:13px 16px;margin:14px 0;color:var(--ink);font-size:12.5px;
+  font-family:var(--mono);overflow-x:auto;line-height:1.6}
+
 /* hero proof — the metric comparison, styled as terminal output */
 .proof{background:var(--term);border:1px solid var(--line-2);border-radius:6px;
   padding:16px 18px;margin:22px 0 26px;max-width:60ch}
@@ -327,83 +380,153 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
       <a href="#auditor">Run it</a>
       <a href="#terminal">CLI</a>
       <a href="#evidence">Evidence</a>
+      <a href="#boundaries">Boundaries</a>
       <a href="#about">About</a>
     </nav>
   </div>
 </header>
 
 <div class="wrap">
+  <!-- HERO. Previous version opened on the mechanism — "two of these
+       panels are the same series, which two?" — which is a puzzle, and
+       a puzzle is something you solve for fun rather than something you
+       have a budget for. The operational gap goes first now; the
+       r = 0.99987 pair still appears, one section down, as evidence
+       rather than as the pitch. -->
   <section class="hero">
     <div class="eyebrow">For platform &amp; SRE teams</div>
-    <h2>Two of these panels are <em>the same series</em>. Which two?</h2>
+    <h2>Your board has 200 panels. How many <em>independent signals</em>
+      is that?</h2>
+
+    <blockquote class="pull">A forty-panel board driven by four underlying
+      system states gives its owner the feeling of forty-fold coverage and
+      the reality of four.</blockquote>
+
+    <p>Nobody buys the forty panels. They accumulate — one per incident, one
+      per migration, one per person who left. The count goes up and the number
+      of things you can actually <em>see</em> does not, and there is no moment
+      at which anyone is told the difference.</p>
+
+    <p>This measures that difference. Point it at a dashboard export and it
+      reports how much <strong>independent information</strong> your telemetry
+      carries, which panels restate one another, and which are safe to
+      archive — with the evidence for each, and the reasons you should
+      not.</p>
+
+    <!-- The consequence chain the reviewer asked for. Each link carries
+         its own epistemic status, because a four-step causal chain is
+         exactly the shape of argument this project exists to distrust,
+         and printing it unlabelled would cost more credibility than the
+         framing gains. Link 3 is the honest weak one, and it is the
+         open question in the repo. -->
+    <ol class="chain">
+      <li><b>Redundant telemetry</b>
+        <span>Panels restating one underlying quantity</span>
+        <i class="ok">measured</i></li>
+      <li><b>Duplicate alerting</b>
+        <span>Separate rules resolving to the same state</span>
+        <i class="ok">measured</i></li>
+      <li><b>Overload mid-incident</b>
+        <span>Four pages open, one cause, no map</span>
+        <i class="no">asserted, not measured</i></li>
+      <li><b>Retention &amp; query cost</b>
+        <span>Paid per series, per month, indefinitely</span>
+        <i class="part">your prices, our arithmetic</i></li>
+    </ol>
+    <p class="faint">Link three is the one everyone asserts and nobody has
+      tested, including us. It is written down as an unscored prediction in
+      the public repository, and it is the main thing
+      <a href="#ask">we are looking for teams to help settle</a>.</p>
+
+    <div class="cta">
+      <a href="#auditor">Audit a dashboard export</a>
+      <a href="#transformation" class="ghost">See a measured result first</a>
+    </div>
+    <p class="faint" style="margin-top:18px">Runs in your browser. Your file is
+       read in this tab and never uploaded — open the network panel and check.</p>
+  </section>
+
+  <!-- THE TRANSFORMATION BLOCK.
+       Every number here is measured on demo/prometheus_infra.csv by the
+       command printed underneath, and regenerated whenever that corpus
+       changes. An earlier draft of this block used round illustrative
+       figures — 200 panels, 43 signals, 18 archive targets — and they
+       read better. They were also invented, on a page whose entire
+       argument is that we publish the misses. A single unsourced number
+       here would cost more than the drama buys. -->
+  <section class="sec" id="transformation">
+    <h3>What comes back</h3>
+    <p class="lede">A real result on the corpus that ships with the tool: a
+      live Prometheus instance, eleven metrics, 437 samples. Small enough to
+      check by hand, which is the point of using it as the example.</p>
+
+    <div class="xform">
+      <div class="xf-side">
+        <h4>The board</h4>
+        <div class="xf-row"><b>11</b><span>panels</span></div>
+        <div class="xf-row"><b>437</b><span>samples of history</span></div>
+        <p class="faint">Presented as eleven independent views of the
+          system.</p>
+      </div>
+
+      <div class="xf-arrow" aria-hidden="true">&rarr;</div>
+
+      <div class="xf-side out">
+        <h4>The audit</h4>
+        <div class="xf-row"><b>5.6</b><span>independent signals</span></div>
+        <div class="xf-row"><b>49.3%</b><span>restates something already
+          on the board</span></div>
+        <div class="xf-row"><b>2</b><span>archive candidates</span></div>
+        <div class="xf-row alarm"><b>2</b><span>CONFLICTS — one behind a
+          paging alert</span></div>
+        <div class="xf-row"><b>A</b><span>evidence grade — enough history
+          to act on</span></div>
+      </div>
+    </div>
+
+    <pre class="cmd">redd run prometheus_infra.csv --basis differenced --ordered \
+     --refs ./monitoring --worksheet ws.csv</pre>
+    <p class="faint">Eleven panels is a small board. The ratio is what
+      travels: half of a production Prometheus instance was restating the
+      other half, on a set small enough that its owners could reasonably
+      believe they knew it.</p>
+  </section>
+
+  <!-- The CONFLICT flag, promoted out of the CLI section. It was the
+       best thing on the page and it was two-thirds of the way down. -->
+  <section class="sec" id="conflict">
+    <h3>The row that explains the whole product</h3>
+    <p class="lede">Two of those eleven metrics are statistically
+      interchangeable. Only one of them is safe to touch.</p>
 
     <div class="proof">
       <div class="proof-row">
         <code>methodGET_status200</code><span class="vs">vs</span><code>request_rate_total</code>
         <b>r = 0.99987</b>
       </div>
-      <span class="faint">Found on a live Prometheus instance. Not similar — the
-        same numbers, on two separate panels, alerting separately.</span>
+      <span class="faint">Not similar. The same numbers, on two separate
+        panels, alerting separately.</span>
     </div>
 
-    <p>Two hundred tiles. Four pages for one incident. And nobody has deleted a
-       panel in two years, because nobody can prove which ones are safe to
-       remove.</p>
-    <p>This reads a dashboard export and tells you how many <strong>genuinely
-       distinct things</strong> it measures, which panels are one measurement
-       shown twice, and which are safe to archive — with the evidence for each.</p>
+    <p><code>request_rate_total</code> carries <b>0.0011</b> unique variance.
+      On the arithmetic alone it is a restatement of the other column and the
+      engine marks it <b>ARCHIVE</b>. Point the reference scan at your alert
+      rules and the worksheet leads with this instead:</p>
 
-    <div class="cta">
-      <a href="#auditor">See it run on real infra data</a>
-      <a href="#auditor" class="ghost">Or drop your own export</a>
-    </div>
-    <p class="faint" style="margin-top:18px">Runs in your browser. Your file is
-       read in this tab and never uploaded — open the network panel and check.</p>
-  </section>
+    <pre class="conflict">** CONFLICT: engine says ARCHIVE, but this metric is
+   behind a PAGING alert (RequestRateCollapse) **</pre>
 
-  <section class="sec">
-    <h3>What it checks</h3>
-    <p class="lede">Every check runs on every file — and <strong>the ones that
-      did not fire get printed too</strong>, along with the one we have not built
-      yet. You can tell what a tool actually covers by what it admits it
-      doesn't.</p>
-    <div class="grid">
-      <div class="feat"><div class="ic">01</div><b>Everything spiked, so everything correlated</b>
-        <span>During an incident every metric moves at once, and raw correlation
-        calls them all related. Both the raw and the change-over-time view are
-        computed and shown, so a shared timeline doesn't get read as a shared
-        cause.</span></div>
+    <p><b>Both facts are true, and only one of them is in the CSV.</b> Archive
+      it on the arithmetic alone and the next outage pages nobody. That row is
+      sorted to the top of every worksheet, paging alerts first, because on a
+      two-hundred-panel board the one that matters otherwise sits in the middle
+      looking like all the others.</p>
 
-      <div class="feat"><div class="ic">02</div><b>The same number on two tiles</b>
-        <span>A rate and its complement. A count and its percentage. Bytes and
-        megabytes. Pairs matching at r ≥ 0.999 are one measurement displayed
-        twice — and you get told which one to keep.</span></div>
-
-      <div class="feat"><div class="ic">03</div><b>Totals that are just their parts</b>
-        <span>A request total that is exactly the per-status counters added up.
-        Archive the total, keep the parts — <em>never</em> the reverse, because
-        every member of that family looks individually redundant and dropping
-        them all loses the lot.</span></div>
-
-      <div class="feat"><div class="ic">04</div><b>Worst-of and max() panels</b>
-        <span>A cluster-health tile taking the max across nodes is fully
-        determined by its inputs, yet naive scoring ranks it your most important
-        signal — because which node is worst keeps changing.</span></div>
-
-      <div class="feat"><div class="ic">05</div><b>Related, but your correlation check says no</b>
-        <span>Two metrics sitting at r ≈ 0.03 that are strongly dependent anyway:
-        a threshold effect, a saturation curve, a queue that only backs up past
-        80%. Measured against a shuffled null so the estimator's own noise isn't
-        reported as a finding.</span></div>
-
-      <div class="feat"><div class="ic">06</div><b>When normalising changes the answer</b>
-        <span>Divide by request rate and two panels suddenly look identical.
-        That's either a real duplicate you'd been missing, or an artefact you
-        just created. You get both readings and how to tell them apart — it will
-        not guess for you.</span></div>
-    </div>
+    <p class="faint">This is why the tool ends at a worksheet rather than a
+      delete button. The arithmetic is the easy half.</p>
   </section>
 </div>
+
 
 <div class="wrap" id="auditor">
   <section class="sec"><h3>Run an audit</h3>
@@ -538,31 +661,55 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
       </div>
     </div>
 
-    <h3 style="margin-top:34px">The row that explains the whole
-    thing</h3>
+    <p class="faint" style="margin-top:20px">Step 03 is what produced
+    <a href="#conflict">the CONFLICT above</a>. It answers two of the
+    worksheet's four attestation columns — monitors and dashboards. SLOs and
+    runbooks it cannot read, and it says <code>not found in N scanned
+    sources</code> rather than "unreferenced", because a monitor in a repo it
+    was never pointed at is invisible to it.</p>
+  </section>
 
-    <p>On the live Prometheus instance above, <code>request_rate_total</code>
-    carries <b>0.0011</b> unique variance. Statistically it is a
-    restatement of <code>methodGET_status200</code> — the engine marks it
-    <b>ARCHIVE</b>.</p>
+  <section class="sec" id="checks">
+    <h3>What it checks</h3>
+    <p class="lede">Every check runs on every file — and <strong>the ones that
+      did not fire get printed too</strong>, along with the one we have not built
+      yet. You can tell what a tool actually covers by what it admits it
+      doesn't.</p>
+    <div class="grid">
+      <div class="feat"><div class="ic">01</div><b>Everything spiked, so everything correlated</b>
+        <span>During an incident every metric moves at once, and raw correlation
+        calls them all related. Both the raw and the change-over-time view are
+        computed and shown, so a shared timeline doesn't get read as a shared
+        cause.</span></div>
 
-    <p>Point the reference scan at the alert rules and the worksheet
-    leads with this instead:</p>
+      <div class="feat"><div class="ic">02</div><b>The same number on two tiles</b>
+        <span>A rate and its complement. A count and its percentage. Bytes and
+        megabytes. Pairs matching at r ≥ 0.999 are one measurement displayed
+        twice — and you get told which one to keep.</span></div>
 
-    <pre class="conflict">** CONFLICT: engine says ARCHIVE, but this metric is
-   behind a PAGING alert (RequestRateCollapse) **</pre>
+      <div class="feat"><div class="ic">03</div><b>Totals that are just their parts</b>
+        <span>A request total that is exactly the per-status counters added up.
+        Archive the total, keep the parts — <em>never</em> the reverse, because
+        every member of that family looks individually redundant and dropping
+        them all loses the lot.</span></div>
 
-    <p><b>Both facts are true, and only one of them is in the CSV.</b>
-    Archive it on the arithmetic alone and the next outage pages nobody.
-    That row is sorted to the top of every worksheet, paging alerts
-    first, because on a two-hundred-panel board the one that matters
-    otherwise sits in the middle looking like all the others.</p>
+      <div class="feat"><div class="ic">04</div><b>Worst-of and max() panels</b>
+        <span>A cluster-health tile taking the max across nodes is fully
+        determined by its inputs, yet naive scoring ranks it your most important
+        signal — because which node is worst keeps changing.</span></div>
 
-    <p class="faint">The scan answers two of the four columns — monitors
-    and dashboards. SLOs and runbooks it cannot read, and it says
-    <code>not found in N scanned sources</code> rather than
-    "unreferenced", because a monitor in a repo it was never pointed at
-    is invisible to it.</p>
+      <div class="feat"><div class="ic">05</div><b>Related, but your correlation check says no</b>
+        <span>Two metrics sitting at r ≈ 0.03 that are strongly dependent anyway:
+        a threshold effect, a saturation curve, a queue that only backs up past
+        80%. Measured against a shuffled null so the estimator's own noise isn't
+        reported as a finding.</span></div>
+
+      <div class="feat"><div class="ic">06</div><b>When normalising changes the answer</b>
+        <span>Divide by request rate and two panels suddenly look identical.
+        That's either a real duplicate you'd been missing, or an artefact you
+        just created. You get both readings and how to tell them apart — it will
+        not guess for you.</span></div>
+    </div>
   </section>
 
   <section class="sec" id="safety">
@@ -619,6 +766,72 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
     </div>
   </section>
 
+  <!-- ENGINE BOUNDARIES.
+       These facts were previously spread across the hero's neighbours,
+       the CLI section and the About panel, which meant a first-time
+       reader met the caveats before the problem. Consolidated here,
+       below the evidence, where someone evaluating the tool will look
+       for them and someone still deciding whether they have the problem
+       will not trip over them. Nothing was softened in the move — the
+       list is longer than it was. -->
+  <section class="sec" id="boundaries">
+    <h3>Engine boundaries</h3>
+    <p class="lede">What this cannot do, in one place, stated rather than
+      discovered. Each of these is either a published miss or a limit we
+      measured and could not remove.</p>
+
+    <div class="grid">
+      <div class="feat"><div class="ic">○</div><b>Rolling averages</b>
+        <span>A metric plotted against its own rolling average is
+        <em>not</em> detected. Two designs were built and withdrawn on
+        evidence — one flagged independent random walks, the other produced
+        476 false positives while missing the confirmed real case. It renders
+        as an unchecked circle in every report rather than being left off
+        the list.</span></div>
+
+      <div class="feat"><div class="ic">○</div><b>Subset averages</b>
+        <span>A column that is the mean of <em>some</em> of the others is not
+        found. The Open LLM Leaderboard's <code>Average</code> column matched
+        at r = 1.00000000 on 541 of 541 models and nothing flagged it. Exact
+        subset <em>sums</em> are detected; means are not.</span></div>
+
+      <div class="feat"><div class="ic">△</div><b>Counter data is judged more
+        leniently</b>
+        <span>The nonlinear check computes one noise floor per dataset.
+        Integer counters carry far less entropy than continuous gauges, so
+        tied columns are systematically <em>less</em> likely to be flagged in
+        the same audit. Under-detection, not over-detection — the safer
+        direction, and measured at a hundredfold spread across fixtures.</span></div>
+
+      <div class="feat"><div class="ic">△</div><b>Cross-sections need
+        normalising</b>
+        <span>On data where rows are entities rather than timestamps, size
+        drives every correlation and everything looks related. Ratio-normalise
+        before running. The tool reports both readings and the test that
+        separates them; it will not pick for you.</span></div>
+
+      <div class="feat"><div class="ic">✕</div><b>Nothing here is causal</b>
+        <span>Two metrics in a cluster may share a driver, or one may cause
+        the other, or both may be measuring an instrument rather than the
+        world. The engine sees covariation and says so. It has no access to
+        your architecture, your incident history, or which panel someone
+        added after a bad night.</span></div>
+
+      <div class="feat"><div class="ic">✕</div><b>It does not know what your
+        metrics mean</b>
+        <span>A statistically redundant column may be worth keeping for
+        contractual, regulatory or diagnostic reasons that appear nowhere in
+        a CSV of values. The reference scan reads Prometheus rules and Grafana
+        JSON; SLO definitions and runbooks it cannot read at all.</span></div>
+    </div>
+
+    <p class="faint" style="margin-top:18px">The full record, including the two
+      pre-registered predictions that failed and the cycle whose misses
+      disproved the previous cycle's diagnosis, is in
+      <a href="https://github.com/bigangusmac67-oss/ReddMunro">the repository</a>
+      — six studies, four with published misses.</p>
+  </section>
+
   <details class="about" id="about">
     <summary>About the engine &amp; author</summary>
     <div class="body">
@@ -670,15 +883,11 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
       </ul>
 
       <h3>What it does not do</h3>
-      <p>Stated here rather than buried. It does not detect a metric plotted
-      against its own rolling average — two designs were built and withdrawn on
-      evidence, and it renders as an unchecked circle rather than a claim. It
-      does not know what your metrics <em>mean</em>, so a statistically redundant
-      column may be worth keeping for contractual or diagnostic reasons.
-      Equal-occupancy binning degrades on integer counts with few distinct
-      values. And nothing here is causal: two metrics in a cluster may share a
-      driver, or one may cause the other, or both may be measuring an instrument
-      rather than the world.</p>
+      <p>Six boundaries, each either a published miss or a limit that was
+      measured and could not be removed, are set out in full under
+      <a href="#boundaries">engine boundaries</a> above — rolling averages,
+      subset means, counter-data leniency, cross-sections, causality, and
+      semantics.</p>
 
       <h3>Where the name comes from</h3>
       <p><strong>Redd Munro is not a person.</strong> Both halves are Scots, and

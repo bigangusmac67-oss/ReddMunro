@@ -1,23 +1,57 @@
 # Redd Munro
 
-### → Run it on your own dashboard export, in your browser: **[reddmunro.com](https://reddmunro.com)**
+**Measures how much independent information your telemetry actually
+carries.**
 
-No install, no account, no upload — the engine runs in your tab via WebAssembly.
-Open the network panel and check.
+> A forty-panel board driven by four underlying system states gives its
+> owner the feeling of forty-fold coverage and the reality of four.
 
-**Your dashboards don't have an observability problem — they have a trust problem.**
+Dashboards accumulate — one panel per incident, one per migration, one per
+person who left. The count goes up and the number of things you can
+actually *see* does not, and there is no moment at which anyone is told
+the difference. This measures the difference.
 
-Validates telemetry before dashboards, alerting engines and automated agents consume it: how many independent signals a metric set actually carries, which columns are the same number twice, and which are safe to archive.
+## A measured result, before anything else
 
-A forty-metric dashboard driven by four underlying things gives its owner the feeling of forty-fold coverage and the reality of four. This tool measures the difference.
+On the Prometheus corpus that ships with this repository. Eleven metrics
+is a small board, chosen because it is small enough to check by hand:
 
-Point it at a CSV whose columns are metrics and whose rows are observations over time. It returns:
+| The board | The audit |
+|---|---|
+| **11** panels | **5.6** independent signals |
+| **437** samples of history | **49.3%** restates something already on the board |
+| | **2** archive candidates |
+| | **2** CONFLICTS — one behind a paging alert |
+| | **A** evidence grade |
 
-- **How many independent signals are really there** — the participation ratio of the correlation spectrum, plus the number of principal components needed for 95% of the variance
-- **Definitional identities** — pairs at |r| ≥ 0.999 that are the same number wearing two names (a rate and its complement, a count and its percentage, a unit conversion)
-- **Redundancy clusters** — groups where one well-chosen representative would carry nearly everything the group carries
-- **Per-metric contribution** — what each column would actually cost you if you deleted it
-- **Nonlinear dependence** — pairs that are strongly related but nearly uncorrelated, which a correlation matrix reports as independent
+```bash
+redd run prometheus_infra.csv --basis differenced --ordered \
+    --refs ./monitoring --worksheet ws.csv
+```
+
+Every figure above is produced by that command and by nothing else; there
+are no illustrative numbers in this README. The ratio is what travels:
+**half of a production Prometheus instance was restating the other half**,
+on a set small enough that its owners could reasonably believe they knew
+it.
+
+## Why that matters — and where the argument stops
+
+| Link | Status |
+|---|---|
+| Redundant telemetry | **measured** |
+| Separate alert rules resolving to the same underlying state | **measured** |
+| Cognitive overload during incidents | **asserted, not measured** |
+| Retention and query cost | your prices, our arithmetic |
+
+The third link is the one everyone in this industry asserts and nobody has
+tested, including us. It is prediction **H1** in
+[`HISTORY_STORE_PREREG.md`](HISTORY_STORE_PREREG.md), deliberately left
+unscored, because settling it needs a window somebody labelled `incident`
+because their service was genuinely broken. It is the main thing we are
+[looking for teams to help settle](RELEASE_NOTES_v0.1.0.md).
+
+## Install
 
 ```
 pip install redd-munro                 # numpy is the only dependency
@@ -30,6 +64,26 @@ redd prune metrics.csv                 # just the deletion candidates
 redd prune metrics.csv --quiet         # bare names, for piping
 redd history                           # what previous runs found
 ```
+
+### → Or run it on your own export in the browser: **[reddmunro.com](https://reddmunro.com)**
+
+No install, no account, no upload — the engine runs in your tab via
+WebAssembly. Open the network panel and check.
+
+## What it returns
+
+Point it at a CSV whose columns are metrics and whose rows are
+observations over time:
+
+- **How many independent signals are really there** — the participation ratio of the correlation spectrum, plus the number of principal components needed for 95% of the variance
+- **Definitional identities** — pairs at |r| ≥ 0.999 that are the same number wearing two names (a rate and its complement, a count and its percentage, a unit conversion)
+- **Redundancy clusters** — groups where one well-chosen representative would carry nearly everything the group carries
+- **Per-metric contribution** — what each column would actually cost you if you deleted it
+- **Nonlinear dependence** — pairs that are strongly related but nearly uncorrelated, which a correlation matrix reports as independent
+
+What it does **not** do is set out under [engine
+boundaries](#engine-boundaries) below — twelve of them, each either a
+published miss or a limit that was measured and could not be removed.
 
 The distribution is `redd-munro`; the command is `redd`. Two names because
 plain `redd` was already taken on PyPI, and the distribution name is only
@@ -278,9 +332,13 @@ Full scoring, including the three rejected detector designs, is in `REAL_DASHBOA
 
 ---
 
-## Limitations
+## Engine boundaries
 
 Stated plainly, because a tool that reports structure should be honest about its own.
+
+The site carries a six-item summary of this list. **This is the full one**,
+and it is longer on purpose: a limitation short enough to fit on a landing
+page has usually lost the measurement that makes it worth reading.
 
 - **It does not know what your metrics mean.** A statistically redundant metric may be worth keeping for regulatory, contractual, diagnostic or communication reasons the tool cannot see. It measures information, not value.
 - **Thresholds are judgement calls.** `IDENTITY_R = 0.999`, `REDUNDANT_R = 0.90` and `MI_RATIO_FLAG = 3.0` are stated as constants at the top of the file so you can see and change them. There is nothing canonical about them.
