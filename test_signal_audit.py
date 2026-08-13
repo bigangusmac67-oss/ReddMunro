@@ -22,13 +22,27 @@ import numpy as np
 
 import signal_audit as SA
 
-PASS, FAIL = [], []
+PASS, FAIL, SKIPPED = [], [], []
 
 
 def check(name, condition, detail=""):
     (PASS if condition else FAIL).append(name)
     mark = "ok  " if condition else "FAIL"
     print(f"  [{mark}] {name}" + (f"  — {detail}" if detail else ""))
+
+
+def skip(name, why):
+    """Record a check that could not run, and say why.
+
+    A skip is not a pass. It is printed, counted, and listed in the
+    summary — and `REDD_REQUIRE_EXTRAS=1` turns every skip into a
+    failure, which is what CI sets. The precedent is the wasm32 bug:
+    134 checks were green for five days while every visitor's browser
+    raised TypeError, because not one of them ran on the platform the
+    product ships to. A skip nobody counts is that bug's shape.
+    """
+    SKIPPED.append(f"{name} — {why}")
+    print(f"  [SKIP] {name}  — {why}")
 
 
 def _catch(fn):
@@ -1135,6 +1149,29 @@ def main():
     print("\n21. reference graph")
     import refgraph as RG
 
+    # PromQL tokenising needs nothing; reading Prometheus RULE FILES
+    # needs PyYAML, which is the optional [refgraph] extra so the engine
+    # stays numpy-only. Probed once here because two separate blocks
+    # below depend on it, and a per-block try/except would report the
+    # same missing package twice.
+    try:
+        import yaml as _yaml_probe                            # noqa: F401
+        _have_yaml = True
+    except ImportError:
+        _have_yaml = False
+    if not _have_yaml:
+        if os.environ.get("REDD_REQUIRE_EXTRAS") == "1":
+            check("PyYAML is present, so the rule parser is exercised",
+                  False,
+                  "REDD_REQUIRE_EXTRAS=1 is set — a missing optional extra "
+                  "is a failure here, not a skip. CI sets it so the "
+                  "reference scan cannot quietly stop being tested. "
+                  "Fix: pip install pyyaml")
+        else:
+            skip("reference graph: Prometheus rule parsing",
+                 "PyYAML absent. This is the optional [refgraph] extra, "
+                 "not the engine — pip install 'redd-munro[refgraph]'")
+
     def refs(expr):
         return (RG.extract_metric_identifiers(expr)
                 | RG._iter_label_selector_metrics(expr))
@@ -1244,6 +1281,17 @@ def main():
               all(by[m][mon] == "" for m in by),
               "the look-up is automated; the answer is not")
 
+    except ImportError as exc:
+        # `scan_paths` re-raises ImportError deliberately: with no YAML
+        # parser it cannot read alert rules, and answering
+        # "not_found_in_scanned_sources" for a metric whose rules were
+        # never parsed is the one wrong answer this tool must not give.
+        # The refusal is correct and stays. What was wrong is that it
+        # took the whole suite down for anyone on the documented
+        # numpy-only install, reading as "the engine is broken".
+        # Already counted by the probe above, so this only swallows it.
+        if _have_yaml or "PyYAML" not in str(exc):
+            raise                      # a real import failure, not the extra
     finally:
         shutil.rmtree(tmp21, ignore_errors=True)
 
@@ -1263,7 +1311,10 @@ def main():
     # makes specific claims about what is and is not found.
     ex = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
                       "examples", "monitoring")
-    if os.path.exists(ex):
+    # `_have_yaml` gates this too: two of the three example files are
+    # .yml rule files, so without the extra this block cannot run at
+    # all — and it is the block that proves the CONFLICT flag fires.
+    if os.path.exists(ex) and _have_yaml:
         gx = RG.scan_paths([ex])
         check("examples scan cleanly", len(gx.scanned) == 3 and not gx.unreadable,
               f"{len(gx.scanned)} files, {len(gx.entries)} references")
@@ -1786,10 +1837,14 @@ latency_bucket{le="+Inf"} 300
               _redd.main is __import__("signal_audit_cli").main)
 
     print("\n" + "=" * 70)
-    print(f"{len(PASS)} passed, {len(FAIL)} failed")
+    print(f"{len(PASS)} passed, {len(FAIL)} failed, {len(SKIPPED)} skipped")
     if FAIL:
         for f in FAIL:
             print(f"  FAILED: {f}")
+    if SKIPPED:
+        for s in SKIPPED:
+            print(f"  SKIPPED: {s}")
+        print("  Set REDD_REQUIRE_EXTRAS=1 to make a skip a failure.")
     print("=" * 70)
     return 1 if FAIL else 0
 
