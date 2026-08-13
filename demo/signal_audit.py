@@ -88,6 +88,64 @@ def load_csv(path, ignore=(), max_rows=None):
                              label=path)
 
 
+def _shape_hint(header, body, raw_header):
+    """Name the likely CAUSE when a file yields too few numeric columns.
+
+    The refusal was already accurate — "found 1 usable numeric column" is
+    true — and accurate was not enough. `ADOPTION_PREREG.md` A1 predicts
+    that teams stall getting an export into shape, not at the worksheet,
+    so this message is the one a new user is most likely to meet and the
+    last thing they read before giving up.
+
+    Each branch names a specific shape and what to do about it. Nothing
+    here transforms the data: guessing a delimiter or pivoting silently
+    would make the tool audit a file the user did not hand it, which is
+    the failure this whole engine is built to refuse. It says what it
+    thinks the file is; the fix stays the user's.
+    """
+    hints = []
+
+    # Semicolon or tab delimited: the whole header arrived as one field.
+    if len(raw_header) == 1 and any(d in raw_header[0] for d in ";\t|"):
+        d = next(d for d in ";\t|" if d in raw_header[0])
+        shown = {";": "semicolon", "\t": "tab", "|": "pipe"}[d]
+        hints.append(
+            f"This looks {shown}-delimited, not comma-delimited — the whole "
+            f"header parsed as a single column. Excel writes this in some "
+            f"locales. Re-export as comma-separated, or convert first.")
+
+    # Long / narrow: one label column and one value column, many repeats.
+    low = [h.lower() for h in header]
+    label_like = {"metric", "name", "series", "__name__", "measurement",
+                  "field", "key", "label"}
+    value_like = {"value", "val", "v", "y", "reading", "sample"}
+    if (len(header) <= 4 and any(h in label_like for h in low)
+            and any(h in value_like for h in low)):
+        lab = next(h for h in header if h.lower() in label_like)
+        val = next(h for h in header if h.lower() in value_like)
+        distinct = len({r[low.index(lab.lower())]
+                        for r in body[:500] if len(r) > low.index(lab.lower())})
+        hints.append(
+            f"This looks like LONG format: one row per (time, metric, "
+            f"value), with {distinct} distinct value(s) in '{lab}'. This "
+            f"engine needs WIDE format — one COLUMN per metric, one ROW "
+            f"per timestamp. Pivot '{lab}' into columns and '{val}' into "
+            f"the cells. In pandas:\n"
+            f"    df.pivot(index=<time col>, columns='{lab}', "
+            f"values='{val}').to_csv('wide.csv')")
+
+    # Too few rows is a row problem, and saying "0 usable columns" blames
+    # the columns for it.
+    if 0 < len(body) < MIN_ROWS:
+        hints.append(
+            f"The file has {len(body)} data row(s). The audit needs at "
+            f"least {MIN_ROWS}, and about 10 rows per metric for a usable "
+            f"evidence grade — every column here was dropped for having "
+            f"too few values, not for being non-numeric.")
+
+    return ("\n\n  " + "\n\n  ".join(hints)) if hints else ""
+
+
 def load_csv_text(text, ignore=(), max_rows=None, label="<input>"):
     """Read numeric columns from CSV TEXT. Returns (names, matrix, notes).
 
@@ -147,12 +205,33 @@ def load_csv_text(text, ignore=(), max_rows=None, label="<input>"):
             notes.append(f"'{name}' — dropped, constant "
                          f"(value {np.nanmax(arr):g})")
             continue
-        cols[name] = arr
+
+        # DUPLICATE HEADER NAMES. `cols` is keyed by name, so a repeated
+        # header used to overwrite the earlier column: three columns in,
+        # two metrics out, nothing in `notes`, and a headline counting a
+        # number of metrics the file did not have. The docstring above
+        # promises the opposite, and this was the one case that broke it.
+        #
+        # Kept rather than refused, and disambiguated rather than
+        # merged, because a dashboard that exports the same panel twice
+        # is REDUNDANCY — the thing this tool exists to find. Collapsing
+        # the pair silently destroyed the finding and the evidence for
+        # it at the same time. The suffix names the column position, so
+        # it points at something checkable in the source file.
+        key = name
+        if key in cols:
+            key = f"{name} (col {j + 1})"
+            notes.append(f"'{name}' — appears more than once in the "
+                         f"header; kept as '{key}'. Identical duplicates "
+                         f"will be reported as an identity pair, which "
+                         f"is a finding, not an error.")
+        cols[key] = arr
 
     if len(cols) < 2:
         raise ValueError(
             f"{path}: found {len(cols)} usable numeric column(s); need at "
-            f"least 2.\n" + "\n".join("  " + n for n in notes))
+            f"least 2.\n" + "\n".join("  " + n for n in notes)
+            + _shape_hint(header, body, rows[0]))
 
     names = list(cols)
     M = np.column_stack([cols[n] for n in names])

@@ -1797,11 +1797,122 @@ latency_bucket{le="+Inf"} 300
     finally:
         shutil.rmtree(tmp26, ignore_errors=True)
 
-    # --- zero egress ---------------------------------------------------
+    # --- zero egress, at RUNTIME ----------------------------------------
+    #
+    # The static scan below is a grep. It cannot see an import inside a
+    # function, a dependency reaching out, or `signal_audit_cli` itself,
+    # which was never in its list — and the CLI is the thing users run.
+    # The site says "a test asserts the code cannot open a socket", so
+    # the test should assert it rather than approximate it.
+    #
+    # THE POSITIVE CONTROL RUNS FIRST. A block that silently fails to
+    # block would make every assertion after it vacuously true — the
+    # same defect as the C3 control in the history cycle, which passed
+    # while measuring nothing because its fixture contained no identity
+    # pairs. So: prove the trap is armed, then walk into it.
+    print("\n27. zero egress, enforced at runtime")
+    import socket as _sock
+
+    _real = {"socket": _sock.socket,
+             "create_connection": _sock.create_connection,
+             "getaddrinfo": _sock.getaddrinfo}
+
+    class NetworkAttempted(Exception):
+        pass
+
+    def _blocked(*_a, **_k):
+        raise NetworkAttempted("network access attempted during an audit")
+
+    tmp27 = tempfile.mkdtemp()
+    try:
+        csv27 = os.path.join(tmp27, "m.csv")
+        rng27 = np.random.default_rng(31)
+        F27 = rng27.standard_normal((300, 3))
+        X27 = np.column_stack([F27 @ rng27.standard_normal((3, 5)),
+                               F27[:, 0] * 2.0])
+        write_csv(csv27, [f"m{i}" for i in range(6)], X27)
+        refs27 = os.path.join(tmp27, "mon")
+        os.makedirs(refs27, exist_ok=True)
+        with open(os.path.join(refs27, "b.json"), "w", encoding="utf-8") as fh:
+            fh.write('{"title":"B","panels":[{"targets":[{"expr":"m0"}]}]}')
+
+        _sock.socket = _blocked
+        _sock.create_connection = _blocked
+        _sock.getaddrinfo = _blocked
+        try:
+            # positive control — the trap must actually fire
+            armed = False
+            try:
+                _sock.socket()
+            except NetworkAttempted:
+                armed = True
+            check("the socket block is armed (positive control)", armed,
+                  "without this, every check below would pass vacuously")
+
+            if armed:
+                import io as _io2
+                import contextlib as _ctx2
+                import signal_audit_cli as CLI27
+                ws27 = os.path.join(tmp27, "ws.csv")
+                runs = [
+                    ("run", ["run", csv27, "--ordered", "--basis", "raw"]),
+                    ("run --html --json", ["run", csv27, "--ordered",
+                                           "--html", os.path.join(tmp27, "r.html"),
+                                           "--json", os.path.join(tmp27, "r.json")]),
+                    ("prune --worksheet --refs",
+                     ["prune", csv27, "--ordered", "--refs", refs27,
+                      "--worksheet", ws27]),
+                    ("run --record", ["run", csv27, "--ordered", "--record",
+                                      "--window-label", "quiet"]),
+                    ("history", ["history", "--root",
+                                 os.path.join(tmp27, ".redd")]),
+                ]
+                cwd27 = os.getcwd()
+                os.chdir(tmp27)          # --record writes ./.redd
+                # The assertion is "no socket was opened", NOT "exit 0".
+                # `run` returns 1 when findings fire — it is a CI gate,
+                # and --no-fail suppresses it. Asserting exit 0 here
+                # would have been testing the exit-code convention while
+                # claiming to test egress, and it would have failed for
+                # a reason that has nothing to do with the network.
+                # SystemExit is caught explicitly. argparse raises it for
+                # a bad flag, and it derives from BaseException — so an
+                # `except Exception` swallowed two of these cases and the
+                # loop ended early with no failure reported. A test that
+                # loses cases quietly is the bug it exists to catch.
+                for name, argv in runs:
+                    try:
+                        with _ctx2.redirect_stdout(_io2.StringIO()), \
+                             _ctx2.redirect_stderr(_io2.StringIO()):
+                            rc = CLI27.main(argv)
+                        ok, detail = True, f"exit {rc}, no socket opened"
+                    except NetworkAttempted:
+                        ok, detail = False, "OPENED A SOCKET"
+                    except SystemExit as exc:
+                        ok, detail = False, f"argparse rejected it: {exc.code}"
+                    except Exception as exc:            # noqa: BLE001
+                        ok, detail = False, f"{type(exc).__name__}: {exc}"[:70]
+                    check(f"`redd {name}` runs with the network blocked",
+                          ok, detail)
+                os.chdir(cwd27)
+        finally:
+            for k, v in _real.items():
+                setattr(_sock, k, v)
+        check("the block was lifted afterwards",
+              _sock.socket is _real["socket"],
+              "a leaked patch would poison every later test")
+    finally:
+        shutil.rmtree(tmp27, ignore_errors=True)
+
+    # --- zero egress, statically ----------------------------------------
+    # Kept alongside the runtime check: the runtime test proves nothing
+    # reached the network on THESE paths, and the grep covers paths no
+    # test exercised. Neither subsumes the other.
     banned = ("import socket", "import urllib", "import requests",
               "import http.client", "from urllib", "import httpx",
               "urlopen(", "socket.socket")
-    for mod in ("cardinality", "refgraph", "routing", "shadow", "history", "signal_audit"):
+    for mod in ("cardinality", "refgraph", "routing", "shadow", "history",
+                "signal_audit", "signal_audit_cli", "redd"):
         src23 = open(os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
                                   mod + ".py"), encoding="utf-8").read()
         hits = [b for b in banned if b in src23]
@@ -1835,6 +1946,98 @@ latency_bucket{le="+Inf"} 300
         check("`python -m redd` has an entry point", callable(_redd.main))
         check("the console script and the shim call the same function",
               _redd.main is __import__("signal_audit_cli").main)
+
+    # ------------------------------------------------------------------
+    # 28. the refusal names the likely cause
+    #
+    # ADOPTION_PREREG.md A1 predicts teams stall getting an export into
+    # shape, not at the worksheet. So this is the message a new user is
+    # most likely to meet and the last thing they read before giving up.
+    # "found 1 usable numeric column" was accurate and useless.
+    #
+    # Each hint must also NOT fire on a good file: a parser that cries
+    # "this looks like long format" at a healthy wide CSV would train
+    # people to ignore the one message that matters.
+    # ------------------------------------------------------------------
+    print("\n28. first-contact error hints")
+    rng28 = np.random.default_rng(41)
+
+    long28 = "timestamp,metric,value\n" + "\n".join(
+        f"{i},{m},{rng28.standard_normal():.4f}"
+        for i in range(200) for m in ("cpu", "mem"))
+    e28 = _catch(lambda: SA.audit_text(long28, label="long.csv"))
+    check("long format is named as long format, with the pivot",
+          e28 is not None and "LONG format" in str(e28)
+          and "pivot" in str(e28).lower(), str(e28).splitlines()[-1][:64]
+          if e28 else "no error raised")
+
+    semi28 = "a;b;c\n" + "\n".join(
+        ";".join(f"{v:.4f}" for v in rng28.standard_normal(3))
+        for _ in range(200))
+    e29 = _catch(lambda: SA.audit_text(semi28, label="semi.csv"))
+    check("a semicolon file is told it is semicolon-delimited",
+          e29 is not None and "semicolon-delimited" in str(e29),
+          "Excel writes this in some locales")
+
+    tiny28 = "a,b,c\n" + "\n".join(
+        ",".join(f"{v:.4f}" for v in rng28.standard_normal(3))
+        for _ in range(6))
+    e30 = _catch(lambda: SA.audit_text(tiny28, label="tiny.csv"))
+    check("too few ROWS is blamed on rows, not on the columns",
+          e30 is not None and "6 data row(s)" in str(e30)
+          and f"at least {SA.MIN_ROWS}" in str(e30),
+          "the old message said '0 usable numeric columns', which "
+          "blamed the columns for a row-count problem")
+
+    # Negative control: a healthy wide CSV must trigger no hint at all.
+    good28 = ",".join(f"m{i}" for i in range(4)) + "\n" + "\n".join(
+        ",".join(f"{v:.4f}" for v in rng28.standard_normal(4))
+        for _ in range(200))
+    hinted = _catch(lambda: SA.audit_text(good28, label="good.csv"))
+    check("a healthy wide file raises nothing, so the hints stay credible",
+          hinted is None,
+          "a parser that cries wolf on good input trains people to "
+          "ignore the one message that matters")
+
+    # ------------------------------------------------------------------
+    # 26. a repeated header name must not delete a column
+    #
+    # `cols` is keyed by name, so `cpu,cpu,mem` used to yield TWO
+    # metrics: the second `cpu` overwrote the first, `excluded_columns`
+    # was empty, and the headline counted a number of metrics the file
+    # did not contain. Found by feeding the CLI the shapes a real
+    # dashboard export actually has, which is the only way this class of
+    # bug ever surfaces.
+    # ------------------------------------------------------------------
+    print("\n26. duplicate header names")
+    rng26 = np.random.default_rng(21)
+    a26 = rng26.standard_normal(240)
+    b26 = rng26.standard_normal(240)
+    txt26 = "cpu,cpu,mem\n" + "\n".join(
+        f"{a26[i]:.5f},{b26[i]:.5f},{rng26.standard_normal():.5f}"
+        for i in range(240))
+    p26 = SA.report_payload(SA.audit_text(txt26, label="dupe", ordered=True))
+    got = [m["name"] for m in p26["metrics"]]
+    check("three columns in, three metrics out", len(got) == 3, str(got))
+    check("the surviving duplicate is renamed by column position",
+          any("col 2" in n for n in got), str(got))
+    check("the rename is reported, not silent",
+          any("more than once" in n for n in p26["excluded_columns"]),
+          "a column vanishing without explanation is how an audit "
+          "quietly becomes an audit of something else")
+
+    # The case that matters: the same panel exported twice is redundancy,
+    # which is the thing this tool exists to find. Collapsing the pair
+    # destroyed the finding and its evidence together.
+    same = "\n".join(f"{v:.5f},{v:.5f},{rng26.standard_normal():.5f}"
+                     for v in a26)
+    p27 = SA.report_payload(SA.audit_text("cpu,cpu,mem\n" + same,
+                                          label="real", ordered=True))
+    check("an identical duplicate panel is reported as an identity pair",
+          any({"cpu"} <= {i["metric_a"], i["metric_b"]}
+              for i in p27["identity_pairs"]),
+          f"{len(p27['identity_pairs'])} identity pair(s) — a finding, "
+          f"not a silent deletion")
 
     # ------------------------------------------------------------------
     # 25. every generated artefact leads with how to undo it
