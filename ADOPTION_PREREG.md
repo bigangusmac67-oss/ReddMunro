@@ -107,6 +107,40 @@ it would say more about the ask than about the worksheet.
 
 ---
 
+## Amendment 1 — the site contaminates A1, and it was our doing
+
+**Registered before any team was contacted, after noticing it while
+drafting the outreach note.**
+
+The cohort section of reddmunro.com carries this sentence:
+
+> **We predict that is where most of you will stop.**
+
+Publishing A1 was the right call — a page that asks people to check our
+predictions has to show them — but it makes A1 harder to measure on
+exactly the people most likely to volunteer. Anyone who reads the site
+before running the tool **has been told where we expect them to stop**
+before being asked where they stopped. That primes question 2 in both
+directions: some will report the export because it was suggested, others
+will push past it precisely because they were told not to manage it.
+
+There is no clean fix. Removing the sentence would hide a prediction
+from the people being predicted about, which is worse. So:
+
+- **`source` is recorded for every team** — `site` (read the prediction)
+  or `direct` (cold contact, has not). See `OUTREACH.md` §3.
+- **The two groups are scored separately.** A1 is measurable on the
+  `direct` group only. The `site` group is reported, and reported as
+  contaminated.
+- If the `direct` group comes in under five teams, **A1 is recorded as
+  unscoreable rather than scored on a sample that cannot carry it.**
+
+This is a self-inflicted limitation and it is written here rather than
+discovered at scoring time, which is the only thing that makes it worth
+anything.
+
+---
+
 ## Result
 
 *Unscored. No team has run this on a dashboard they care about yet.*
