@@ -378,6 +378,7 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
       </div>
     </div>
     <nav class="nav-links">
+      <a href="#cohort">Cohort</a>
       <a href="#auditor">Run it</a>
       <a href="#terminal">CLI</a>
       <a href="#evidence">Evidence</a>
@@ -441,7 +442,7 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
 
     <div class="cta">
       <a href="#auditor">Audit a dashboard export</a>
-      <a href="#transformation" class="ghost">See a measured result first</a>
+      <a href="#cohort" class="ghost">Or join the ten-team cohort</a>
     </div>
     <p class="faint" style="margin-top:18px">Runs in your browser. Your file is
        read in this tab and never uploaded — open the network panel and check.</p>
@@ -529,6 +530,74 @@ redd prune prometheus_infra.csv --basis differenced --ordered \
 
     <p class="faint">This is why the tool ends at a worksheet rather than a
       delete button. The arithmetic is the easy half.</p>
+  </section>
+
+  <!-- THE COHORT.
+       Placed after the CONFLICT rather than before it, deliberately.
+       An invitation is only worth reading once the reader believes the
+       thing works; asking first and demonstrating second is how a
+       research framing turns into "this is a science project, not a
+       tool". So: problem, measured result, the finding, THEN the ask.
+
+       Three phrases were proposed for this section and are not used.
+       "Controlled trial" — there is no control group, no
+       randomisation and no allocation, and ADOPTION_PREREG.md says so
+       two clicks away. "Benchmark" — a benchmark needs pooled results,
+       and zero telemetry means we only ever see what someone chooses
+       to email. "2-minute audit" — true of the example board, not of
+       theirs, and prediction A1 says the export is where they will
+       actually stop. -->
+  <section class="sec" id="cohort">
+    <h3>An open call for ten teams — not a trial you sign up for</h3>
+
+    <p class="lede">Everything above was measured on public data. Nobody
+      has run this on a board they would be paged for.</p>
+
+    <p>So there is nothing to buy here and no demo to book. There is an
+      open call for <b>ten teams</b> to run the same audit on their own
+      dashboards and say what came back — <b>including nothing</b>.</p>
+
+    <div class="grid">
+      <div class="feat"><div class="ic">01</div><b>Nothing leaves your machine</b>
+        <span>The audit on this page runs in your tab via WebAssembly. The
+        CLI is numpy and a CSV file. No agent, no account, no upload — and
+        a test asserts the code cannot open a socket. Check the network
+        panel rather than this sentence.</span></div>
+
+      <div class="feat"><div class="ic">02</div><b>The predictions are already
+        written down</b>
+        <span>What we expect you to do, and where we expect you to give up,
+        is registered in <code>ADOPTION_PREREG.md</code> — unscored, and
+        committed before any of you ran it. Read it first, then check
+        whether we were right about you.</span></div>
+
+      <div class="feat"><div class="ic">03</div><b>Results get published,
+        nulls included</b>
+        <span>Including teams who report that it found nothing, and the
+        count of teams who never replied at all. A cohort that publishes
+        only its successes is an advert with a sample size.</span></div>
+    </div>
+
+    <p style="margin-top:20px"><b>What it costs you.</b> The example board
+      below takes about two minutes. Your own board takes longer, and the
+      slow part is not the audit — it is getting an export into one column
+      per metric and one row per timestamp, which is not one click in
+      Grafana. <b>We predict that is where most of you will stop</b>, and
+      it is better said here than discovered in a reply.</p>
+
+    <p><b>What you get.</b> Your numbers, the worksheet, and the tool —
+      Apache 2.0, yours to keep and to fork. <b>What we get</b> is the
+      first evidence that any of this survives contact with a board
+      somebody is paged for. That is the entire trade; it is deliberately
+      not a discount on something later.</p>
+
+    <p class="faint">No NDA needed to send a finding, happy to sign one if
+      you would rather. Your team is not named in the write-up unless you
+      ask to be.</p>
+
+    <p style="margin-top:20px"><a class="cta"
+      href="mailto:shaun@reddmunro.com?subject=Redd%20Munro%20—%20cohort">
+      Join the ten &rarr;</a></p>
   </section>
 </div>
 
@@ -921,39 +990,38 @@ redd prune prometheus_infra.csv --basis differenced --ordered \
   <!-- THE ASK. With no users yet, the CTA cannot be "buy" — it has to
        be the thing that actually changes the risk profile, which is ten
        teams running it on a board they care about. -->
+  <!-- The close is now the open QUESTION rather than a second copy of
+       the invitation, which #cohort already carries. H1 is the one
+       thing on this page that nobody can answer alone, so it is the
+       last thing read. -->
   <section class="sec" id="ask">
-    <h3>Run it on your dashboard and tell me what it found</h3>
+    <h3>The one question nobody can answer alone</h3>
 
-    <p class="lede">Including if it was useless. That is the more useful
-    message and it is the one I am short of.</p>
+    <p class="lede">Every "keep it just in case" argument in this industry
+    rests on a belief that has never been tested.</p>
 
-    <p><b>Nobody has run this on a dashboard they care about yet.</b>
-    Everything on this page was measured against public data — a live
-    Prometheus instance, NYC COVID counts, ACT air quality, FDIC bank
-    filings, 541 language models. All real; none of it anyone's
-    production board.</p>
+    <p>The belief is that metrics which look identical <em>come apart
+    during incidents</em> — that the pair sitting at r = 0.99987 all
+    quarter diverges exactly when it matters, which is why deleting either
+    one feels dangerous. It is the load-bearing assumption under every
+    dashboard nobody prunes.</p>
 
-    <p>I am looking for <b>ten teams</b> to run it on theirs. No sales
-    call, no trial to sign up for — the tool is Apache 2.0 and installs
-    with <code>pip install redd-munro</code>. What I want back is the
-    finding, or the reason there wasn't one.</p>
+    <p><b>It has never been tested. Not here, not anywhere.</b> It is
+    written down as prediction <b>H1</b> in the public repository,
+    deliberately unscored, because settling it needs something no public
+    dataset contains: a window somebody labelled <code>incident</code>
+    because their service was genuinely broken.</p>
 
-    <p>There is one question I cannot answer without you. Every "keep it
-    just in case" argument in this industry rests on the belief that
-    metrics which look identical <em>come apart during incidents</em>.
-    <b>That has never been tested — here or anywhere else.</b> It is
-    written down as prediction H1 in the public repository, unscored,
-    and answering it needs a window somebody labelled
-    <code>incident</code> because their service was genuinely broken.</p>
+    <p>If you have that window, you can settle a question this whole
+    industry has been assuming the answer to.</p>
 
     <p style="margin-top:22px"><a class="cta"
-      href="mailto:shaun@reddmunro.com?subject=Redd%20Munro%20—%20what%20it%20found">
+      href="mailto:shaun@reddmunro.com?subject=Redd%20Munro%20—%20H1">
       shaun@reddmunro.com</a></p>
 
-    <p class="faint">No NDA needed to send a finding; happy to sign one
-    if you would rather. If it found nothing, that is worth an email
-    too — a tool that only hears from the cases where it worked learns
-    nothing.</p>
+    <p class="faint">And if you ran it and it found nothing, that is worth
+    an email too — a tool that only hears from the cases where it worked
+    learns nothing.</p>
   </section>
 
   <footer>
