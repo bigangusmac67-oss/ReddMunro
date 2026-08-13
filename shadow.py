@@ -49,9 +49,19 @@ import json
 
 import refgraph as RG
 
-__all__ = ["build_shadow", "SENTINEL_PREFIX"]
+__all__ = ["build_shadow", "SENTINEL_PREFIX", "RESTORE_HEADER"]
 
 SENTINEL_PREFIX = "redd_munro_ARCHIVED__"
+
+# One line, first thing, on every artefact this module produces.
+# Deletion anxiety is the reason dashboards do not get pruned, and it is
+# not answered by a reassuring tone three paragraphs down — it is
+# answered by the undo being visible before the change is.
+RESTORE_HEADER = (
+    "RESTORE: nothing was modified. This is a new dashboard with a new "
+    "uid; the original was never written to. To undo, delete this "
+    "dashboard."
+)
 
 
 def _sentinel(name):
@@ -160,6 +170,22 @@ def build_shadow(dashboard_json, archived, title_suffix="[Shadow — structural 
     doc["id"] = None
     doc["version"] = 0
 
+    # The restore instruction goes in `description`, a real Grafana
+    # dashboard field, so it survives the file being copied out of this
+    # directory and away from anything explaining it. A custom top-level
+    # key would be ignored by Grafana and invisible to the person who
+    # needs it.
+    #
+    # NOTE ON WHAT THIS DOES NOT SAY. The obvious header here is
+    # `git checkout HEAD~1 -- board.json`. That would be invented: this
+    # generator does not know the caller's repository, filename or
+    # whether the source is in git at all, and a restore command that is
+    # wrong is worse than none — someone runs it during an incident.
+    # What IS guaranteed is that nothing was modified, so the true undo
+    # is deleting this artefact, and that is what it says.
+    doc["description"] = (
+        RESTORE_HEADER + "\n\n" + (doc.get("description") or "")).strip()
+
     breaks = [f for f in findings if f["kind"] == "expression_operand"]
     variables = [f for f in findings if f["kind"] == "variable"]
     empties = [f for f in findings if f["kind"] == "sole_operand"]
@@ -186,6 +212,8 @@ def build_shadow(dashboard_json, archived, title_suffix="[Shadow — structural 
 def _banner_text(archived, empties, breaks, variables):
     lines = [
         "## Shadow dashboard — structural check only",
+        "",
+        "**" + RESTORE_HEADER + "**",
         "",
         "Metrics an audit proposed archiving have been replaced here with "
         "names that do not resolve. **This board simulates the archive. "

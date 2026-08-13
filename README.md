@@ -25,11 +25,15 @@ is a small board, chosen because it is small enough to check by hand:
 | | **A** evidence grade |
 
 ```bash
-redd run prometheus_infra.csv --basis differenced --ordered \
-    --refs ./monitoring --worksheet ws.csv
+# the audit figures
+redd run   prometheus_infra.csv --basis differenced --ordered
+
+# the archive candidates, and the conflicts against your alert rules
+redd prune prometheus_infra.csv --basis differenced --ordered \
+     --refs ./monitoring --worksheet ws.csv
 ```
 
-Every figure above is produced by that command and by nothing else; there
+Every figure above is produced by those two commands and by nothing else; there
 are no illustrative numbers in this README. The ratio is what travels:
 **half of a production Prometheus instance was restating the other half**,
 on a set small enough that its owners could reasonably believe they knew

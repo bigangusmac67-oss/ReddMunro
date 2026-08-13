@@ -1836,6 +1836,227 @@ latency_bucket{le="+Inf"} 300
         check("the console script and the shim call the same function",
               _redd.main is __import__("signal_audit_cli").main)
 
+    # ------------------------------------------------------------------
+    # 25. every generated artefact leads with how to undo it
+    #
+    # Deletion anxiety is the reason boards do not get pruned, and it is
+    # not answered by a reassuring tone three paragraphs down. The undo
+    # has to be visible before the change is — including in a review
+    # tool that truncates, which is why it is line one and not line
+    # twenty.
+    #
+    # The headers deliberately contain no git command. This code does
+    # not know the caller's repository, filename, or whether the source
+    # is version-controlled at all, and a restore command that is wrong
+    # is worse than none because it gets run under pressure. Asserted
+    # here so a well-meaning future edit cannot add one.
+    # ------------------------------------------------------------------
+    print("\n25. rollback headers on generated artefacts")
+    import shadow as SHD
+    import routing as RTG
+
+    dash25 = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                          "examples", "monitoring", "dashboards",
+                          "platform.json")
+    if os.path.exists(dash25):
+        d25 = json.load(open(dash25, encoding="utf-8"))
+        doc25, _rep25 = SHD.build_shadow(d25, ["request_rate_total"])
+
+        check("shadow carries RESTORE in `description`, a real Grafana field",
+              doc25.get("description", "").startswith("RESTORE:"),
+              "a custom top-level key would be ignored by Grafana and "
+              "invisible to whoever opens the file")
+        check("shadow banner leads with the same restore line",
+              SHD.RESTORE_HEADER in
+              doc25["panels"][0]["options"]["content"].splitlines()[2])
+        check("shadow stays valid JSON after the header is added",
+              json.loads(json.dumps(doc25))["uid"] is None)
+        check("shadow claims nothing was modified, and that is true",
+              doc25["uid"] is None and doc25["id"] is None
+              and doc25["version"] == 0,
+              "new identity, so importing cannot overwrite the original")
+
+        cfg25 = RTG.generate.__doc__ is not None
+        # Build a fully attested worksheet so the generator will emit.
+        r25 = SA.audit(os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                                    "demo", "prometheus_infra.csv"),
+                       basis="differenced", ordered=True)
+        w25 = list(__import__("csv").reader(
+            __import__("io").StringIO(SA.blast_radius_worksheet(r25))))
+        hh = w25[0]
+        for row in w25[1:]:
+            for c in ("referenced_by_monitors", "referenced_by_slos",
+                      "referenced_by_other_dashboards",
+                      "referenced_by_runbooks"):
+                row[hh.index(c)] = "no"
+            row[hh.index("reviewer")] = "test"
+        sio = __import__("io").StringIO()
+        __import__("csv").writer(sio).writerows(w25)
+        cfg = RTG.generate(sio.getvalue(), SA.report_payload(r25),
+                           cold_exporter="otlp/cold")
+
+        first = cfg.splitlines()[0]
+        check("routing config's FIRST line is the restore line",
+              first.startswith("# RESTORE:"), first[:58])
+        check("routing restore says the file has not been applied",
+              "has not been applied" in first,
+              "the most reassuring fact about a config is that it is inert")
+
+        for name, blob in (("shadow", json.dumps(doc25)), ("routing", cfg)):
+            check(f"{name} header invents no git command",
+                  "git checkout" not in blob and "git revert" not in blob,
+                  "we do not know their repo; a wrong restore command is "
+                  "run under pressure")
+    else:
+        skip("rollback headers", "examples/monitoring/dashboards not present")
+
+    # ------------------------------------------------------------------
+    # 24. worksheet triage tiers
+    #
+    # ADOPTION_PREREG.md lists three things that stop this shipping: a
+    # tier that asserts safety, a tier that hides its scope, and a
+    # regrouping that loses a row. All three are checked here, and the
+    # clearance-vocabulary check is deliberately a blacklist over the
+    # rendered cells rather than over the constants, because the failure
+    # mode is someone composing a friendly string at call time.
+    # ------------------------------------------------------------------
+    print("\n24. worksheet triage tiers")
+    if _have_yaml:
+        r24 = SA.audit(os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                                    "demo", "prometheus_infra.csv"),
+                       basis="differenced", ordered=True)
+        raw24 = SA.blast_radius_worksheet(r24)
+        rows24 = list(__import__("csv").reader(__import__("io").StringIO(raw24)))
+        h24 = rows24[0]
+        tix = h24.index("tier")
+
+        check("tier is part of the shared column contract",
+              h24 == SA.WORKSHEET_COLUMNS and "tier" in h24)
+
+        # Without a scan, "not found" is a claim about a search that did
+        # not happen. Every tier must say so in the cell.
+        unscanned = [r[tix] for r in rows24[1:] if r[tix]]
+        check("with no --refs, every tier says NO SCAN",
+              unscanned and all("NO SCAN" in t for t in unscanned),
+              f"{len(unscanned)} tiered row(s)")
+
+        g24 = RG.scan_paths([os.path.join(
+            os.path.dirname(os.path.abspath(SA.__file__)),
+            "examples", "monitoring")])
+        ann24 = RG.annotate_worksheet(raw24, g24)
+        rows25 = list(__import__("csv").reader(__import__("io").StringIO(ann24)))
+        tiers = [r[tix] for r in rows25[1:] if r[tix]]
+
+        check("annotation replaces NO SCAN with the real scope",
+              not any("NO SCAN" in t for t in tiers),
+              "; ".join(tiers[:2])[:70])
+        check("every A/B tier names how many sources were searched",
+              all("scanned source" in t for t in tiers if t[:1] in ("A", "B")),
+              "a tier without its scope is a clearance in disguise")
+        check("conflicts are tier C and sorted first",
+              tiers and all(t.startswith("C") for t in tiers
+                            if tiers.index(t) < sum(1 for x in tiers
+                                                    if x.startswith("C"))),
+              f"{sum(1 for t in tiers if t.startswith('C'))} C row(s)")
+
+        # The prereg's hard stop: grouping is a permutation.
+        before = sorted(r[0] for r in rows24[1:])
+        after = sorted(r[0] for r in rows25[1:])
+        check("regrouping loses no row and invents none", before == after,
+              f"{len(before)} metrics in, {len(after)} out")
+
+        # No tier may assert safety. SAFETY_BOUNDARIES condition 3.
+        banned = ("zero-risk", "zero risk", "no risk", "safe to",
+                  "safe-to", "cleared", "approved", "ok to delete")
+        blob = " ".join(tiers + unscanned).lower()
+        check("no tier label uses clearance vocabulary",
+              not any(b in blob for b in banned),
+              "'Tier 1 (Zero-Risk)' was proposed and refused")
+
+        # KEEP rows carry no tier: they are context, not a decision.
+        rcol24 = h24.index("recommendation")
+        check("KEEP rows are untiered, so the tier count is the decision count",
+              all(not r[tix] for r in rows25[1:]
+                  if r[rcol24].upper().startswith("KEEP")))
+        counts = SA.worksheet_tier_counts(ann24)
+        check("tier counts match the tiered rows", sum(counts.values())
+              == len(tiers), f"{counts}")
+    else:
+        skip("worksheet triage tiers",
+             "needs the reference scan, which needs PyYAML")
+
+    # ------------------------------------------------------------------
+    # 23. no flag is parsed and then ignored
+    #
+    # `--worksheet` and `--refs` are honoured under `prune` only, but
+    # both subcommands share one parser, so `redd run --worksheet ws.csv`
+    # exited 0 and wrote nothing. It reached the README and the live site
+    # as a documented command before anyone ran it against a clean
+    # install. A silent no-op is the one CLI failure that gets written
+    # down as though it worked.
+    # ------------------------------------------------------------------
+    print("\n23. misplaced flags are refused, not ignored")
+    import io as _io
+    import contextlib as _ctx
+    import signal_audit_cli as CLI
+
+    tmp23 = tempfile.mkdtemp()
+    try:
+        csv23 = os.path.join(tmp23, "m.csv")
+        rng23 = np.random.default_rng(11)
+        write_csv(csv23, ["a", "b", "c"], rng23.standard_normal((120, 3)))
+        ws23 = os.path.join(tmp23, "out.csv")
+        refs23 = os.path.join(tmp23, "rules")
+        os.makedirs(refs23, exist_ok=True)
+        with open(os.path.join(refs23, "b.json"), "w", encoding="utf-8") as fh:
+            fh.write('{"title":"B","panels":[{"targets":[{"expr":"a"}]}]}')
+
+        for argv, flag in (
+                (["run", csv23, "--worksheet", ws23], "--worksheet"),
+                (["run", csv23, "--refs", refs23], "--refs"),
+                (["run", csv23, "--refs", refs23, "--worksheet", ws23],
+                 "both")):
+            err = _io.StringIO()
+            with _ctx.redirect_stderr(err), _ctx.redirect_stdout(_io.StringIO()):
+                rc = CLI.main(argv)
+            msg = err.getvalue()
+            check(f"`redd run {flag}` exits non-zero instead of doing nothing",
+                  rc != 0, f"exit {rc}")
+            check(f"`redd run {flag}` names the command that does work",
+                  "redd prune" in msg,
+                  msg.strip().splitlines()[-1][:60] if msg.strip() else "(silent)")
+        check("refusing --worksheet writes no file",
+              not os.path.exists(ws23),
+              "an error that leaves a half-written artefact is worse "
+              "than the no-op it replaced")
+
+        # The refusal must not have broken the command that works.
+        out = _io.StringIO()
+        with _ctx.redirect_stdout(out), _ctx.redirect_stderr(_io.StringIO()):
+            rc = CLI.main(["prune", csv23, "--worksheet", ws23,
+                           "--refs", refs23])
+        check("`redd prune --worksheet --refs` still works", rc == 0
+              and os.path.exists(ws23), f"exit {rc}")
+        check("a bare `redd run` is unaffected",
+              CLI.main(["run", csv23, "--quiet"]) == 0)
+    finally:
+        shutil.rmtree(tmp23, ignore_errors=True)
+
+    # The version the CLI reports and the version that ships must agree;
+    # they live in two files and drifted once already.
+    # Read by regex rather than tomllib: tomllib is 3.11+, the package
+    # supports older, and a test that only runs on the newest
+    # interpreter is the shape of gap that let the wasm32 bug ship.
+    _pp = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                       "pyproject.toml")
+    if os.path.exists(_pp):
+        _m = re.search(r'^version\s*=\s*"([^"]+)"',
+                       open(_pp, encoding="utf-8").read(), re.M)
+        check("pyproject version matches signal_audit.__version__",
+              _m is not None and _m.group(1) == SA.__version__,
+              f"pyproject {_m.group(1) if _m else '?'} · "
+              f"engine {SA.__version__}")
+
     print("\n" + "=" * 70)
     print(f"{len(PASS)} passed, {len(FAIL)} failed, {len(SKIPPED)} skipped")
     if FAIL:

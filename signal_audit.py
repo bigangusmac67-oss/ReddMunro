@@ -60,7 +60,7 @@ import sys
 
 import numpy as np
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Thresholds. Stated as constants because they are judgement calls, not
 # facts, and anyone using this should be able to see and change them.
@@ -1395,7 +1395,22 @@ def verdict_line(res):
 # requires: the scan reports where it looked and what it saw, and the
 # human answers yes or no. Automating the look-up is the saving;
 # automating the answer is the thing this product sells against.
-WORKSHEET_EVIDENCE = ["metric", "recommendation", "unique_variance",
+# `tier` groups rows by WHAT WAS CHECKED, never by how risky the row is.
+# "Tier 1 (Zero-Risk)" was proposed and refused: a tier is an extremely
+# efficient way to smuggle a clearance into a document whose entire job
+# is to withhold one. Condition 3 again — evidence, never clearance.
+#
+# The scope travels inside the cell rather than in a legend, because a
+# legend is the first thing lost when a row is pasted into a ticket.
+# With no reference scan run, tiers A and B say NO SCAN, because "nothing
+# found" is vacuous when nothing was looked at.
+TIER_A = "A - identity pair"
+TIER_B = "B - high redundancy"
+TIER_C = "C - conflict"
+TIER_CONTEXT = ""          # KEEP rows: present for context, not a decision
+TIER_UNSCANNED = "NO SCAN (re-run with --refs)"
+
+WORKSHEET_EVIDENCE = ["metric", "tier", "recommendation", "unique_variance",
                       "duplicated_by", "identity_partner", "cluster_id",
                       "scan_evidence"]
 WORKSHEET_ATTESTATION = ["referenced_by_monitors", "referenced_by_slos",
@@ -1433,16 +1448,62 @@ def blast_radius_worksheet(res):
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(WORKSHEET_COLUMNS)
+
+    # Rows are grouped so a reviewer meets the same number of decisions
+    # in a smaller number of kinds. Tier C cannot be assigned here — a
+    # conflict needs a reference scan — so `annotate_worksheet` upgrades
+    # rows to C and rewrites the scope text. Until then every tier
+    # carries NO SCAN, which is the honest state of a worksheet produced
+    # without --refs.
+    rows = []
     for u in sorted(res["diff"]["unique"], key=lambda x: x["unique"]):
         nm = u["name"]
         rec = ("ARCHIVE" if nm in cands
                else "KEEP (identity survivor)" if nm in keep
                else "KEEP")
-        w.writerow([nm, rec, round(float(u["unique"]), 4),
-                    u["best_partner"], partner.get(nm, ""),
-                    cluster_of.get(nm, ""), ""]
-                   + [""] * len(WORKSHEET_ATTESTATION))
+        if nm not in cands:
+            tier = TIER_CONTEXT
+        elif partner.get(nm):
+            tier = f"{TIER_A} - {TIER_UNSCANNED}"
+        else:
+            tier = f"{TIER_B} - {TIER_UNSCANNED}"
+        rows.append(([nm, tier, rec, round(float(u["unique"]), 4),
+                      u["best_partner"], partner.get(nm, ""),
+                      cluster_of.get(nm, ""), ""]
+                     + [""] * len(WORKSHEET_ATTESTATION)))
+
+    for row in sorted(rows, key=lambda r: worksheet_sort_key(r[1])):
+        w.writerow(row)
     return buf.getvalue()
+
+
+def worksheet_sort_key(tier):
+    """Order rows C, A, B, then context — decisions before background.
+
+    Kept in one place because `annotate_worksheet` re-sorts after
+    assigning tier C, and two orderings that disagree would silently
+    depend on which ran last.
+    """
+    if tier.startswith(TIER_C):
+        return 0
+    if tier.startswith(TIER_A):
+        return 1
+    if tier.startswith(TIER_B):
+        return 2
+    return 3
+
+
+def worksheet_tier_counts(csv_text):
+    """{tier letter: count} for the summary line the CLI prints."""
+    rows = list(csv.reader(io.StringIO(csv_text)))
+    if not rows or "tier" not in rows[0]:
+        return {}
+    i = rows[0].index("tier")
+    out = {}
+    for r in rows[1:]:
+        if i < len(r) and r[i]:
+            out[r[i][:1]] = out.get(r[i][:1], 0) + 1
+    return out
 
 
 def summary_markdown(payload):

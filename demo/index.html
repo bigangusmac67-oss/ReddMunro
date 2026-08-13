@@ -248,6 +248,7 @@ pre.conflict{background:var(--term);border:1px solid var(--line-2);
 pre.cmd{background:var(--term);border:1px solid var(--line-2);border-radius:5px;
   padding:13px 16px;margin:14px 0;color:var(--ink);font-size:12.5px;
   font-family:var(--mono);overflow-x:auto;line-height:1.6}
+pre.cmd .c{color:var(--ink-faint)}
 
 /* hero proof — the metric comparison, styled as terminal output */
 .proof{background:var(--term);border:1px solid var(--line-2);border-radius:6px;
@@ -484,7 +485,11 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
       </div>
     </div>
 
-    <pre class="cmd">redd run prometheus_infra.csv --basis differenced --ordered \
+    <pre class="cmd"><span class="c"># the audit figures</span>
+redd run   prometheus_infra.csv --basis differenced --ordered
+
+<span class="c"># the archive candidates, and the conflicts against your rules</span>
+redd prune prometheus_infra.csv --basis differenced --ordered \
      --refs ./monitoring --worksheet ws.csv</pre>
     <p class="faint">Eleven panels is a small board. The ratio is what
       travels: half of a production Prometheus instance was restating the
@@ -854,7 +859,7 @@ details.about code{font-family:var(--mono);font-size:12px;background:var(--term)
       misses, because they turned out to be bugs in this tool rather than bad
       guesses about the data.</p>
 
-      <p><b>You do not have to take that on trust.</b> The source, the four
+      <p><b>You do not have to take that on trust.</b> The source, the six
       pre-registration documents and every corpus they were scored against are
       public — <a href="https://github.com/bigangusmac67-oss/ReddMunro">read
       them on GitHub</a>. "We wrote the predictions first" is an empty claim on

@@ -436,6 +436,7 @@ def annotate_worksheet(csv_text, graph):
     scol = idx["scan_evidence"]
     rcol = idx.get("recommendation")
     ncol = idx.get("note")
+    tcol = idx.get("tier")
 
     label = {"referenced_by_monitors": "monitors",
              "referenced_by_other_dashboards": "dashboards"}
@@ -473,10 +474,31 @@ def annotate_worksheet(csv_text, graph):
                          f"source(s) - NOT a clearance; the scan cannot "
                          f"see monitors, SLOs or queries outside them")
 
+        # The tier is rewritten here because only this function knows
+        # what was scanned. A conflict becomes C; everything else keeps
+        # its A/B letter and swaps the placeholder NO SCAN for the real
+        # scope. The count stays in the cell: "not found" is a claim
+        # about a search, and a search with no sources found nothing by
+        # construction.
+        if tcol is not None and row[tcol]:
+            import signal_audit as _SA
+            letter = row[tcol][:1]
+            if conflict:
+                what = ("paging alert" if info["paging"] else "live reference")
+                row[tcol] = f"{_SA.TIER_C} - {what} found by the scan"
+            else:
+                base = (_SA.TIER_A if letter == "A" else _SA.TIER_B)
+                n = len(info["scanned"])
+                row[tcol] = (f"{base} - not found in {n} scanned source(s)"
+                             if n else f"{base} - {_SA.TIER_UNSCANNED}")
+
         # sort key: conflicts first, paging conflicts before the rest,
-        # then original order (which is ascending unique variance)
+        # then tier, then original order (ascending unique variance)
+        import signal_audit as _SA2
         annotated.append(((0 if conflict else 1,
                            0 if (conflict and info["paging"]) else 1,
+                           _SA2.worksheet_sort_key(row[tcol])
+                           if tcol is not None else 0,
                            order), row))
 
     annotated.sort(key=lambda t: t[0])

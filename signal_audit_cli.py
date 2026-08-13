@@ -303,7 +303,64 @@ def json_payload(res: dict) -> dict:
 
 
 # ----------------------------------------------------------------------
+def _misplaced_flags(a, f) -> int:
+    """Refuse flags that this subcommand parses but does not act on.
+
+    v0.1.1. `--worksheet` and `--refs` are honoured under `prune` only —
+    the guard is further down this file — but both subcommands share one
+    parser, so `redd run --worksheet ws.csv` was ACCEPTED, wrote nothing,
+    printed nothing, and exited 0.
+
+    That is the worst failure mode a CLI has. It cost this project a
+    documented command that could not work: the README and the live
+    site both carried `redd run … --refs … --worksheet ws.csv` until
+    someone ran it verbatim against a clean install. Anything that
+    silently succeeds while doing nothing will eventually be written
+    down as though it worked.
+
+    Refusing rather than quietly honouring it, deliberately: making the
+    flag work under `run` is a feature and belongs in a minor release
+    with its own tests. Turning a silent no-op into an actionable error
+    is the bug fix, and it changes the behaviour of no invocation that
+    was already doing what its author intended.
+    """
+    if a.command != "run":
+        return 0
+    bad = []
+    if getattr(a, "worksheet", None) is not None:
+        bad.append("--worksheet")
+    if getattr(a, "refs", None):
+        bad.append("--refs")
+    if not bad:
+        return 0
+
+    joined = " and ".join(bad)
+    print(f"{f.red('error')}: {joined} "
+          f"{'are' if len(bad) > 1 else 'is'} not available on "
+          f"`redd run` — the worksheet is produced by `redd prune`.",
+          file=sys.stderr)
+    rest = [x for x in (f"--basis {a.basis}" if getattr(a, "basis", None)
+                        else "", "--ordered" if getattr(a, "ordered", False)
+                        else "") if x]
+    hint = " ".join(["redd prune", a.csv] + rest)
+    if "--refs" in bad:
+        hint += " " + " ".join(f"--refs {p}" for p in a.refs)
+    if "--worksheet" in bad:
+        hint += f" --worksheet {a.worksheet or 'ws.csv'}"
+    print(f"       try:  {hint}", file=sys.stderr)
+    print(f"       (`redd run` gives the report; `redd prune` gives the "
+          f"candidates and the safety worksheet.)", file=sys.stderr)
+    return 2
+
+
 def _run(a, f) -> int:
+    # A flag this subcommand parses but ignores is refused before any
+    # work happens, so the failure is immediate rather than discovered
+    # when an expected file turns out not to exist.
+    rc = _misplaced_flags(a, f)
+    if rc:
+        return rc
+
     # `history` reads the store and never touches a CSV, so it is handled
     # before anything that assumes an input file exists.
     if a.command == "history":
@@ -603,6 +660,32 @@ def _run(a, f) -> int:
                             "same as nothing referencing it."))
             print(f.dim("  Complete the referenced_by_* columns before "
                         "generating any archive script."))
+
+            # Tier summary. Says how many decisions of each KIND are in
+            # the file, not how many are safe — a count that implied the
+            # latter would be the clearance this whole document exists
+            # to withhold.
+            counts = SA.worksheet_tier_counts(text)
+            if counts:
+                print()
+                order = [("C", "conflict - engine says ARCHIVE and the "
+                               "scan found a reference"),
+                         ("A", "identity pair"),
+                         ("B", "high redundancy")]
+                for letter, what in order:
+                    n = counts.get(letter, 0)
+                    if not n:
+                        continue
+                    col = f.amber if letter == "C" else f.cyan
+                    print(f"  {col(letter)}  {n:>3} row(s)  {f.dim(what)}")
+                if "C" in counts:
+                    print(f.dim("  Start with C. Every tier still needs a "
+                                "person; the grouping is by what was "
+                                "checked, not by how safe it is."))
+                if graph is None:
+                    print(f.dim("  Tiers read NO SCAN because --refs was "
+                                "not given: 'not found' means nothing "
+                                "when nothing was searched."))
         return 0
     if a.command == "prune":
         drop = SA.deletion_candidates(res)
