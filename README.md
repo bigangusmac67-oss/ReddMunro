@@ -74,6 +74,35 @@ redd history                           # what previous runs found
 No install, no account, no upload — the engine runs in your tab via
 WebAssembly. Open the network panel and check.
 
+## Getting the CSV
+
+The engine needs **wide** format: one column per metric, one row per
+timestamp. It will not pivot, transpose, or guess a delimiter for you —
+an audit of data the tool had to alter is an audit of something else.
+
+**Grafana quick export.** Edit the panel → **Query Inspector** →
+**Data** → toggle **Join by time** → **Download CSV**. That writes one
+column per query, already in the shape this expects.
+
+Three things the click-path does not tell you:
+
+- **`Join by time` only appears when the panel has more than one query.**
+  A single-query panel gives you one metric, which is not enough to audit
+  — you need at least two columns.
+- **It is per panel, not per dashboard.** A forty-panel board is forty
+  exports unless several panels already share one query. This is the
+  genuinely tedious part and there is no honest way to describe it as a
+  few clicks.
+- **Leave `Download for Excel` off.** In some locales it writes
+  semicolon-separated values, which this will refuse — correctly, and
+  with a message saying so, but it is a wasted round trip.
+
+Anything that produces the same shape works: a PromQL range query written
+out wide, a Datadog or New Relic CSV export, `pandas.pivot`, a
+spreadsheet. If a file comes back in long format
+(`timestamp,metric,value`), the refusal names it and prints the one-line
+pivot.
+
 ## What it returns
 
 Point it at a CSV whose columns are metrics and whose rows are

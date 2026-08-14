@@ -141,6 +141,42 @@ anything.
 
 ---
 
+## Amendment 2 — the onboarding changed, on 2026-08-14, before any contact
+
+**A1 predicts teams stall getting an export into shape. On 2026-08-14 we
+made that step easier.** `README.md` gained a "Getting the CSV" section
+naming the Grafana click-path (Query Inspector → Data → Join by time →
+Download CSV), the per-panel limitation, and the delimiter trap.
+
+**This is an intervention on the exact variable A1 measures**, and it has
+to be recorded as one. A prediction about where people give up, scored
+against an onboarding that quietly improved halfway through, is not a
+scored prediction — it is two half-samples reported as one.
+
+Two things make it survivable here:
+
+1. **It happened before the first team was contacted.** Every team in the
+   cohort meets the same onboarding, so the sample is not split. Had it
+   landed mid-cohort, the correct move would have been to score the
+   before and after groups separately or abandon A1.
+2. **It is recorded with a date**, so a later reader cannot mistake the
+   result for one obtained against the bare version.
+
+**A1's wording is unchanged and it is not softened.** The tip makes one
+panel a few clicks; it does nothing about a forty-panel board being forty
+exports, which is the friction the prediction is actually about. If A1
+still holds with the tip in place, that is a stronger result than it
+would have been without — the easy fix was applied first and did not
+move it.
+
+**Nothing was added to `OUTREACH.md`.** The cold note carries no export
+tutorial and no link to this section. A recipient who goes looking for
+documentation will find it, and that is normal; putting it in the note
+would make the export step salient in the same message that asks where
+they stopped.
+
+---
+
 ## Result
 
 *Unscored. No team has run this on a dashboard they care about yet.*
