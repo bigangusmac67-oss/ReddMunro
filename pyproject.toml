@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redd-munro"
-version = "0.1.1"
+version = "0.1.2"
 description = "Redd Munro — find out how much of your dashboard is measuring the same thing"
 readme = "README.md"
 requires-python = ">=3.8"

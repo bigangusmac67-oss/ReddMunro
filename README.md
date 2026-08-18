@@ -115,7 +115,7 @@ observations over time:
 - **Nonlinear dependence** — pairs that are strongly related but nearly uncorrelated, which a correlation matrix reports as independent
 
 What it does **not** do is set out under [engine
-boundaries](#engine-boundaries) below — twelve of them, each either a
+boundaries](#engine-boundaries) below — thirteen of them, each either a
 published miss or a limit that was measured and could not be removed.
 
 The distribution is `redd-munro`; the command is `redd`. Two names because
@@ -385,6 +385,7 @@ page has usually lost the measurement that makes it worth reading.
 - **Subset sums are detected, but only exact ones over non-negative columns.** `subset_sums` finds a column that is the exact sum of a named subset of the others — it closed the gap this list previously described. What it still will not do: **signed columns are excluded entirely**, because dominance is meaningless when a child can be negative (on an income statement that excludes most of the sheet); **approximate sums are rejected on purpose**, so a relation holding on 96% of rows is not reported; and a sum whose components are not all present as columns cannot close. It is also skipped above 250 columns, where the O(N²·rows) dominance pass stops being cheap. Missing a real sum is treated as far cheaper than inventing one.
 - **Nonlinear detection needs about 200 rows.** Below that the estimator is unreliable and the tool says so rather than guessing.
 - **Not causal.** Everything here is association. Two metrics in a cluster may share a driver, or one may cause the other, or both may be measuring an instrument rather than the world.
+- **A metric held flat by a working control loop loses its unique variance, and will be offered for archiving.** This is the sharpest limitation on the list, because the arithmetic is right and the advice is still dangerous. A channel that a controller is actively pinning — request latency under an autoscaler, queue depth under a drain loop, heap usage under GC — becomes a near-deterministic function of the load and the effort absorbing it. Deterministic means no residual variance of its own, and `deletion_candidates` archives anything at or below `max_unique = 0.02`. Measured on a simulated proportional controller (gain 0.92, 600 rows, six columns): as the loop tightens, the held channel's unique variance falls **0.90 → 0.41 → 0.067 → 0.0007 → 0.0000**, and it is offered as an ARCHIVE candidate from 0.0007 down. Nothing in the file says the flatness is *maintained* rather than *natural*, and the engine cannot tell the two apart from values alone. **The channel a controller works hardest to hold still is the one that moves first when it stops working** — so this limitation selects for archiving exactly the metric worth keeping. It is not detected, not guessed at, and there is no flag for it; the reference scan and the worksheet are the only defences, which is one more reason the tool ends at an attestation rather than a delete button. A pre-registration for a detector is in `CONTROLLED_FLAT_PREREG.md`, unscored.
 
 ---
 
@@ -448,7 +449,7 @@ licence grants no rights in the name (Apache 2.0 §6), so please do not
 call a fork Redd Munro.
 
 **Why permissive.** The code is a couple of thousand lines of NumPy.
-What is actually hard to copy is in `REAL_DASHBOARDS.md` and the three
+What is actually hard to copy is in `REAL_DASHBOARDS.md` and the eight
 pre-registration documents beside it: predictions written down before
 each dataset was pulled, scored afterwards, misses included. A
 restrictive licence would guard the part that is cheap to reproduce

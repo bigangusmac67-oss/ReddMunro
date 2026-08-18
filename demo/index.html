@@ -884,6 +884,17 @@ redd prune prometheus_infra.csv --basis differenced --ordered \
         before running. The tool reports both readings and the test that
         separates them; it will not pick for you.</span></div>
 
+      <div class="feat"><div class="ic">✕</div><b>A metric held flat by a
+        control loop looks archivable</b>
+        <span>The sharpest one here, because the arithmetic is right and
+        the advice is still dangerous. A channel an autoscaler or GC loop
+        is actively pinning becomes a near-deterministic function of the
+        load and the effort absorbing it — so it carries no unique
+        variance and is offered for archiving. It is also the channel that
+        moves first when that loop stops working. Measured on a simulated
+        controller: unique variance falls 0.90 → 0.0000 as the loop
+        tightens. Not detected, and no flag for it.</span></div>
+
       <div class="feat"><div class="ic">✕</div><b>Nothing here is causal</b>
         <span>Two metrics in a cluster may share a driver, or one may cause
         the other, or both may be measuring an instrument rather than the
@@ -928,8 +939,9 @@ redd prune prometheus_infra.csv --basis differenced --ordered \
       misses, because they turned out to be bugs in this tool rather than bad
       guesses about the data.</p>
 
-      <p><b>You do not have to take that on trust.</b> The source, the six
-      pre-registration documents and every corpus they were scored against are
+      <p><b>You do not have to take that on trust.</b> The source, the eight
+      pre-registration documents — six scored, two still open — and every
+      corpus they were scored against are
       public — <a href="https://github.com/bigangusmac67-oss/ReddMunro">read
       them on GitHub</a>. "We wrote the predictions first" is an empty claim on
       a marketing page; in commit history it is checkable, which is the only
@@ -957,7 +969,7 @@ redd prune prometheus_infra.csv --basis differenced --ordered \
       </ul>
 
       <h3>What it does not do</h3>
-      <p>Six boundaries, each either a published miss or a limit that was
+      <p>Seven boundaries, each either a published miss or a limit that was
       measured and could not be removed, are set out in full under
       <a href="#boundaries">engine boundaries</a> above — rolling averages,
       subset means, counter-data leniency, cross-sections, causality, and

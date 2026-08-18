@@ -1948,6 +1948,179 @@ latency_bucket{le="+Inf"} 300
               _redd.main is __import__("signal_audit_cli").main)
 
     # ------------------------------------------------------------------
+    # 30. output cannot crash on a stream that is not UTF-8
+    #
+    # `redd run board.csv > report.txt` on Windows writes through the
+    # locale codepage, not UTF-8. The report contains █ ✓ ▲ → —, so it
+    # raised UnicodeEncodeError: traceback, no report, on the first
+    # command a new user is likely to type — redirecting the output is
+    # how you send it to someone.
+    #
+    # Also asserted: the shipped modules carry no PEP 604 union in a
+    # runtime position. `dict | None` in a function annotation raises
+    # TypeError at IMPORT on 3.8 and 3.9, and pyproject declares 3.8.
+    # ------------------------------------------------------------------
+    print("\n30. output survives a non-UTF-8 stream")
+    import io as _io3
+    import signal_audit_cli as CLI30
+
+    class _Narrow(_io3.TextIOBase):
+        """Stands in for a cp1252 or ascii console."""
+
+        def __init__(self, enc):
+            self._enc, self.buf = enc, []
+
+        @property
+        def encoding(self):
+            return self._enc
+
+        def write(self, s):
+            s.encode(self._enc)          # raises exactly as the real one does
+            self.buf.append(s)
+            return len(s)
+
+    glyphs = "█─·✓▲○×⬆…—–€"
+    for enc in ("cp1252", "ascii", "cp437"):
+        raw = _Narrow(enc)
+        check(f"the {enc} stand-in really rejects the glyphs (control)",
+              _catch(lambda: raw.write(glyphs)) is not None,
+              "without this the checks below pass vacuously")
+        check(f"{enc}: translated output encodes cleanly",
+              _catch(lambda: _Narrow(enc).write(
+                  glyphs.translate(CLI30._ASCII_FALLBACK))) is None,
+              repr(glyphs.translate(CLI30._ASCII_FALLBACK)))
+        check(f"{enc}: reported as unable to carry the report",
+              not CLI30._supports_unicode(_Narrow(enc)))
+    check("utf-8 is left alone, glyphs and all",
+          CLI30._supports_unicode(_Narrow("utf-8")))
+
+    # Every glyph the CLI emits must have a fallback, or the next one
+    # added quietly reintroduces the crash for the next Windows user.
+    src30 = open(os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                              "signal_audit_cli.py"), encoding="utf-8").read()
+    emitted = {c for c in src30 if ord(c) > 127}
+    missing = sorted(c for c in emitted
+                     if ord(c) not in CLI30._ASCII_FALLBACK)
+    check("every non-ASCII glyph in the CLI has an ASCII fallback",
+          not missing, f"missing: {missing}" if missing else
+          f"{len(emitted)} glyph(s) covered")
+
+    # PEP 604 unions at import time, on a package that declares 3.8
+    for mod in ("signal_audit", "signal_audit_cli", "refgraph", "cardinality",
+                "routing", "shadow", "history", "redd"):
+        path = os.path.join(os.path.dirname(os.path.abspath(SA.__file__)),
+                            mod + ".py")
+        text = open(path, encoding="utf-8").read()
+        deferred = "from __future__ import annotations" in text
+        union = re.search(r":\s*(?:dict|list|str|int|float|bool)\s*\|", text)
+        check(f"{mod}.py imports on the declared Python floor",
+              deferred or not union,
+              "PEP 604 union without `from __future__ import annotations` "
+              "raises TypeError at import on 3.8/3.9" if union and not deferred
+              else "no runtime union, or deferred")
+
+    # ------------------------------------------------------------------
+    # 29. the documents count their own contents correctly
+    #
+    # "six boundaries" went stale twice in three cycles, and "the three
+    # pre-registration documents" was wrong by five. Nobody notices a
+    # numeral drifting, and on a page whose whole argument is that its
+    # numbers are checkable, a wrong count is more expensive than it
+    # looks. So the counts are asserted against the things they count.
+    # ------------------------------------------------------------------
+    print("\n29. stated counts match actual counts")
+    root29 = os.path.dirname(os.path.abspath(SA.__file__))
+    WORD = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+            "seven": 7,
+            "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+            "thirteen": 13, "fourteen": 14, "fifteen": 15}
+
+    rd29 = open(os.path.join(root29, "README.md"), encoding="utf-8").read()
+    site29 = open(os.path.join(root29, "demo", "index.html"),
+                  encoding="utf-8").read()
+
+    # README: "— <n> of them" against the bullets under Engine boundaries
+    m = re.search(r"engine\s*\n?boundaries\]\(#engine-boundaries\) below — "
+                  r"(\w+) of them", rd29)
+    sec = rd29[rd29.index("## Engine boundaries"):]
+    sec = sec[:sec.index("\n---")]
+    bullets = len(re.findall(r"^- \*\*", sec, re.M))
+    check("README's boundary count matches its own bullets",
+          m is not None and WORD.get(m.group(1)) == bullets,
+          f"says {m.group(1) if m else '?'} "
+          f"({WORD.get(m.group(1)) if m else '?'}), has {bullets}")
+
+    # Site: "<n> boundaries" in #about against the cards in #boundaries
+    cards = re.search(r'id="boundaries".*?</section>', site29,
+                      re.S).group(0).count('class="feat"')
+    m2 = re.search(r"<p>(\w+) boundaries, each either", site29)
+    check("site's boundary count matches its own cards",
+          m2 is not None and WORD.get(m2.group(1).lower()) == cards,
+          f"says {m2.group(1) if m2 else '?'}, has {cards} cards")
+
+    # Both surfaces must agree with each other, not merely internally.
+    check("site and README describe the same boundary list",
+          cards <= bullets,
+          f"site {cards} cards summarising README's {bullets} — the site "
+          f"is a summary, so it may be shorter but never longer")
+
+    # Pre-registration documents: total, and how many carry a score
+    pregs = sorted(f for f in os.listdir(root29) if f.endswith("PREREG.md"))
+    scored = [f for f in pregs
+              if re.search(r"^## Result — ",
+                           open(os.path.join(root29, f), encoding="utf-8").read(),
+                           re.M)]
+    m3 = re.search(r"the (\w+)\s*\n?\s*pre-registration documents", site29)
+    check("site's pre-registration count matches the files on disk",
+          m3 is not None and WORD.get(m3.group(1)) == len(pregs),
+          f"says {m3.group(1) if m3 else '?'}, found {len(pregs)}: "
+          f"{', '.join(f[:-11] for f in pregs)}")
+    m4 = re.search(r"(\w+) scored, (\w+) still open", site29)
+    check("site's scored/open split matches the files",
+          m4 is not None and WORD.get(m4.group(1)) == len(scored)
+          and WORD.get(m4.group(2)) == len(pregs) - len(scored),
+          f"{len(scored)} scored, {len(pregs) - len(scored)} open")
+    m5 = re.search(r"and the (\w+)\s*\n?pre-registration documents beside it",
+                   rd29)
+    check("README's pre-registration count matches the files",
+          m5 is not None and WORD.get(m5.group(1)) == len(pregs),
+          f"says {m5.group(1) if m5 else '?'}, found {len(pregs)}")
+
+    # HANDOFF.md is the orientation document — the first thing a new
+    # reader trusts, and therefore the most expensive place for a stale
+    # figure. The previous one sat eleven cycles out of date describing
+    # the project as pre-publication.
+    hd = os.path.join(root29, "HANDOFF.md")
+    if os.path.exists(hd):
+        h29 = open(hd, encoding="utf-8").read()
+        m6 = re.search(r"\*\*(\d+)\*\* — engine (\d+), backend (\d+), "
+                       r"schemas (\d+), scale (\d+)", h29)
+        check("HANDOFF's test totals add up",
+              m6 is not None and sum(int(m6.group(i)) for i in (2, 3, 4, 5))
+              == int(m6.group(1)),
+              f"{m6.group(1)} claimed, {sum(int(m6.group(i)) for i in (2,3,4,5))} "
+              f"summed" if m6 else "totals line not found")
+        # Deliberately NOT asserting the exact engine-test count. It
+        # cannot be counted mid-run, and pinning it would fail on every
+        # commit that adds a test — friction that gets a check deleted
+        # rather than a document updated. The internal sum above is the
+        # part that catches a typo; §10 of HANDOFF carries the command
+        # to re-derive the figure, which is the durable answer.
+        m8 = re.search(r"(\w+) entries", h29)
+        check("HANDOFF's boundary count matches the README",
+              m8 is not None and WORD.get(m8.group(1).lower()) == bullets,
+              f"says {m8.group(1) if m8 else '?'}, README has {bullets}")
+        m7 = re.search(r"ls \*_PREREG\.md\s+# (\d+): (\d+) scored, (\d+) open",
+                       h29)
+        check("HANDOFF's pre-registration split matches the files",
+              m7 is not None and int(m7.group(1)) == len(pregs)
+              and int(m7.group(2)) == len(scored),
+              f"{len(pregs)} files, {len(scored)} scored")
+        check("HANDOFF names the version in pyproject",
+              SA.__version__ in h29,
+              f"engine is {SA.__version__}")
+
+    # ------------------------------------------------------------------
     # 28. the refusal names the likely cause
     #
     # ADOPTION_PREREG.md A1 predicts teams stall getting an export into

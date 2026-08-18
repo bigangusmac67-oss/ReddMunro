@@ -19,7 +19,7 @@ Exit codes are meaningful, so this composes in CI:
 Use `--no-fail` to always exit 0.
 """
 
-from __future__ import annotations
+from __future__ import annotations   # 3.8/3.9: defer PEP 604 unions
 
 import argparse
 import json
@@ -35,6 +35,64 @@ __version__ = SA.__version__
 # ----------------------------------------------------------------------
 # terminal formatting
 # ----------------------------------------------------------------------
+# Box-drawing, ticks and arrows are readable in a terminal and fatal in
+# a pipe. On Windows a REDIRECTED stream uses the locale codepage, not
+# UTF-8, so `redd run board.csv > report.txt` raised UnicodeEncodeError
+# and produced a traceback and no report — on the first command a new
+# user is likely to type, since redirecting the output is how you send
+# it to a colleague.
+#
+# Degrading the glyphs is a RENDERING choice and touches no number, the
+# same trade `Fmt` already makes for colour. Crashing rather than
+# rendering a hash instead of a block is not a defensible reading of
+# "never alter the data".
+_ASCII_FALLBACK = str.maketrans({
+    "█": "#", "─": "-", "·": ".", "✓": "v", "▲": "!", "○": "o",
+    "×": "x", "⬆": "^", "…": "...", "—": "--", "–": "-", "€": "EUR",
+    "️": "",          # variation selector, rides along with ⬆
+})
+
+
+def _supports_unicode(stream) -> bool:
+    """Can this stream encode the glyphs the report uses?"""
+    enc = getattr(stream, "encoding", None)
+    if not enc:
+        return False
+    try:
+        "█─·✓▲○×⬆…—–€".encode(enc)
+        return True
+    except (LookupError, UnicodeEncodeError, TypeError):
+        return False
+
+
+class _AsciiStream:
+    """Wraps a stream that cannot encode the report's glyphs."""
+
+    def __init__(self, stream):
+        self._s = stream
+
+    def write(self, text):
+        return self._s.write(text.translate(_ASCII_FALLBACK))
+
+    def __getattr__(self, name):
+        return getattr(self._s, name)
+
+
+def _degrade_streams():
+    """Make output impossible to crash on, before anything is printed."""
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name)
+        # errors="replace" is the backstop: it catches any character the
+        # table above does not know about, so no future glyph can
+        # reintroduce the crash.
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+        if not _supports_unicode(stream):
+            setattr(sys, name, _AsciiStream(stream))
+
+
 def _supports_colour(stream) -> bool:
     if os.environ.get("NO_COLOR"):
         return False
@@ -97,7 +155,7 @@ GRADE_TONE = {"A": "green", "B": "green", "C": "amber", "D": "red"}
 
 
 def render(res: dict, f: Fmt, top: int = 12, width: int = 100,
-           lex: dict | None = None) -> str:
+           lex=None) -> str:
     out = []
     # Count metrics in the HEADLINE BASIS, not globally. A ratio basis
     # drops its own denominator, so the two differ — and dividing the
@@ -1076,6 +1134,7 @@ def execution_guard(stream=None, cwd=None):
 
 
 def main(argv=None) -> int:
+    _degrade_streams()
     rc = execution_guard()
     if rc:
         return rc

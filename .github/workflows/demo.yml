@@ -21,10 +21,23 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # pyproject declares requires-python >=3.8 and CI only ever ran 3.11,
+    # so the floor was an assertion rather than a fact — the same shape as
+    # the wasm32 bug, where 134 tests passed on a platform none of them
+    # ran on. A PEP 604 union (`dict | None`) in a function annotation
+    # would have raised TypeError on import for every 3.8 and 3.9 user
+    # while every test here stayed green.
+    #
+    # If the floor job fails, the honest fix is to RAISE requires-python
+    # to a version that is tested, not to delete the job.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.11"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with: { python-version: "${{ matrix.python-version }}" }
       # numpy is the only RUNTIME dependency. pyyaml is the optional
       # [refgraph] extra, and CI installs it on purpose: the reference
       # scan is what turns "this metric is redundant" into "...and it is

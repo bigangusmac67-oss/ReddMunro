@@ -60,7 +60,7 @@ import sys
 
 import numpy as np
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # Thresholds. Stated as constants because they are judgement calls, not
 # facts, and anyone using this should be able to see and change them.
